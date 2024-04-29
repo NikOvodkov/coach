@@ -1,0 +1,43 @@
+from aiogram import Router
+from aiogram.filters import Command, StateFilter
+from aiogram.fsm.context import FSMContext
+from aiogram.types import Message
+
+from tg_bot.config import load_config
+from tg_bot.database.sqlite import SQLiteDatabase
+from tg_bot.filters.admin import IsAdmin
+from tg_bot.states.update_db import FSMUpdateDb
+
+router = Router()
+
+# вешаем фильтр на роутер
+router.message.filter(IsAdmin(load_config('.env').tg_bot.admin_ids))
+
+
+@router.message(Command(commands='email'))
+async def add_email(message: Message, state: FSMContext):
+    await message.answer('Пришли мне свой имейл')
+    await state.set_state(FSMUpdateDb.email)
+
+
+@router.message(StateFilter(FSMUpdateDb.email))
+async def enter_email(message: Message, state: FSMContext, db: SQLiteDatabase):
+    email = message.text
+    db.update_cell(table='Users', cell='email', cell_value=email, key='user_id', key_value=message.from_user.id)
+    # user = db.select_user(user_id=message.from_user.id)
+    user = db.select_row(table='Users', user_id=message.from_user.id)
+    await message.answer(f'Данные были обновлены. Запись в бд: {user}')
+    await state.clear()
+
+
+@router.message(Command(commands='sql_db'))
+async def update_db(message: Message, state: FSMContext, db: SQLiteDatabase):
+    await message.answer('Введите SQL команду: ')
+    await state.set_state(FSMUpdateDb.update_db)
+
+
+@router.message(StateFilter(FSMUpdateDb.update_db))
+async def execute_sql(message: Message, state: FSMContext, db: SQLiteDatabase):
+    db.execute_through_sql(message.text)
+    await message.answer('Данные были обновлены.')
+    await state.clear()
