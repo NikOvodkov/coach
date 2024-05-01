@@ -6,7 +6,7 @@ from cachetools import TTLCache
 
 from tg_bot.config import Config
 
-CACHE = TTLCache(maxsize=10_000, ttl=2)  # Максимальный размер кэша - 10000 ключей, а время жизни ключа - 2 секунды
+CACHE = TTLCache(maxsize=10_000, ttl=1)  # Максимальный размер кэша - 10000 ключей, а время жизни ключа - 1 секунда
 
 
 class ThrottlingMiddleware(BaseMiddleware):
@@ -21,7 +21,7 @@ class ThrottlingMiddleware(BaseMiddleware):
         aiobot = data.get('bot')
         config: Config = data.get('config')
         if tg_user.id in CACHE:
-            await event.message.answer(f'От вас слишком много запросов. Пауза 3 секунды...')
+            await event.message.answer(f'От вас слишком много запросов. Пауза 2 секунды...')
             await aiobot.send_message(config.tg_bot.admin_ids[0],
                                       text=f'Пользователь {event.message.from_user.id} {event.message.from_user.username} '
                                            f'замедлен.')
