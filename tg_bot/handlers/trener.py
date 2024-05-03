@@ -135,7 +135,10 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase)
 async def workout_process_1(message: Message, state: FSMContext, db: SQLiteDatabase):
     data = await state.get_data()
     delete_list = data['delete_list']
-    data['done_workout'] = [data['new_workout'][0]]
+    if message.text.isdigit():
+        data['done_workout'] = [message.text]
+    else:
+        data['done_workout'] = [data['new_workout'][0]]
     await state.update_data(done_workout=data['done_workout'])
 
     msg = await message.answer_animation(
@@ -165,7 +168,10 @@ async def workout_process_1(message: Message, state: FSMContext, db: SQLiteDatab
 async def workout_process_2(message: Message, state: FSMContext, db: SQLiteDatabase):
     data = await state.get_data()
     delete_list = data['delete_list']
-    data['done_workout'].append(data['new_workout'][1])
+    if message.text.isdigit():
+        data['done_workout'].append(message.text)
+    else:
+        data['done_workout'].append(data['new_workout'][1])
     await state.update_data(done_workout=data['done_workout'])
     msg = await message.answer_animation(
         animation=db.select_row(table='Multimedia', name='timer')[3],
@@ -193,7 +199,10 @@ async def workout_process_2(message: Message, state: FSMContext, db: SQLiteDatab
 async def workout_process_3(message: Message, state: FSMContext, db: SQLiteDatabase):
     data = await state.get_data()
     delete_list = data['delete_list']
-    data['done_workout'].append(data['new_workout'][2])
+    if message.text.isdigit():
+        data['done_workout'].append(message.text)
+    else:
+        data['done_workout'].append(data['new_workout'][2])
     await state.update_data(done_workout=data['done_workout'])
     msg = await message.answer_animation(
         animation=db.select_row(table='Multimedia', name='timer')[3],
@@ -221,7 +230,10 @@ async def workout_process_3(message: Message, state: FSMContext, db: SQLiteDatab
 async def workout_process_4(message: Message, state: FSMContext, db: SQLiteDatabase):
     data = await state.get_data()
     delete_list = data['delete_list']
-    data['done_workout'].append(data['new_workout'][3])
+    if message.text.isdigit():
+        data['done_workout'].append(message.text)
+    else:
+        data['done_workout'].append(data['new_workout'][3])
     await state.update_data(done_workout=data['done_workout'])
     msg = await message.answer_animation(
         animation=db.select_row(table='Multimedia', name='timer')[3],

@@ -42,7 +42,7 @@ def load_config(path: str | None = None) -> Config:
     env.read_env()
     return Config(
         tg_bot=TgBot(
-            token=env.str("COACH_TOKEN"),
+            token=env.str("TG_TOKEN"),
             # token=env.str("WORK_TOKEN"),
             phone_number=env.str("PHONE_NUMBER"),
             api_id=env.int("API_ID"),
