@@ -50,7 +50,7 @@ async def generate_text_calendar(ldate, rdate, interval):
     return str_out
 
 
-async def generate_image_calendar(ldate, rdate, interval, path) -> str:
+async def generate_image_calendar(ldate, rdate, interval, path) -> int:
     logger.debug('Enter generate_image_calendar')
     rdate_years = (datetime.fromisoformat(rdate) - datetime.fromisoformat(ldate)) / timedelta(days=365.25)
     rdate_weeks = round(rdate_years * 52)
@@ -214,7 +214,9 @@ async def generate_image_calendar(ldate, rdate, interval, path) -> str:
     )
     img.save(path)
     logger.debug('Exit generate_image_calendar')
-    return str_out
+    # return str_out
+    return lived_weeks
+
 
 
 if __name__ == '__main__':

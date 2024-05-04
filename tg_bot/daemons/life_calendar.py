@@ -30,11 +30,27 @@ async def send_life_calendar(db: SQLiteDatabase, bot: Bot, dp: Dispatcher):
         records = db.select_all_table('Users')
         for row in records:
             if row[6] and is_daytime(row):
-                if (datetime.now() - datetime.fromisoformat(row[6])) > timedelta(days=7):
+                if (datetime.now() - datetime.fromisoformat(row[6])) >= timedelta(days=7):
                     path = str(Path.cwd() / Path('tg_bot', 'utils', f'{datetime.now().strftime("%Y%m%d%H%M%S%f")}.gif'))
-                    await generate_image_calendar(row[4], row[5], 'week', path)
-                    await bot.send_photo(row[0], photo=FSInputFile(path), reply_markup=ReplyKeyboardRemove())
-                    # db.update_life_calendar(life_calendar=None, user_id=row[0])
+                    lived_weeks = await generate_image_calendar(row[4], row[5], 'week', path)
+                    if lived_weeks % 52 == 0:
+                        year = round((lived_weeks * 7) / 365.25)
+                        os.remove(path)
+                        path = str(Path.cwd() / Path('tg_bot', 'utils', f'{datetime.now().strftime("%Y%m%d%H%M%S%f")}.gif'))
+                        await generate_image_calendar(row[4], row[5], 'year', path)
+                        await bot.send_photo(row[0], photo=FSInputFile(path), reply_markup=ReplyKeyboardRemove(),
+                                             caption=f'Очередная год закончился, встречайте год {year + 1}!')
+                    elif lived_weeks % 5 == 0:
+                        month = round((lived_weeks * 7) / 30.4375)
+                        os.remove(path)
+                        path = str(Path.cwd() / Path('tg_bot', 'utils', f'{datetime.now().strftime("%Y%m%d%H%M%S%f")}.gif'))
+                        await generate_image_calendar(row[4], row[5], 'month', path)
+                        await bot.send_photo(row[0], photo=FSInputFile(path), reply_markup=ReplyKeyboardRemove(),
+                                             caption=f'Прошёл очередной месяц, встречайте месяц {month + 1}!')
+                    else:
+                        await bot.send_photo(row[0], photo=FSInputFile(path), reply_markup=ReplyKeyboardRemove(),
+                                             caption=f'Очередная неделя подходит к концу, встречайте неделю {lived_weeks + 1}!')
+
                     db.update_cell(table='Users', cell='life_calendar', cell_value=None, key='user_id', key_value=row[0])
                     os.remove(path)
                     await dp.storage.set_state(StorageKey(bot_id=bot.id, chat_id=row[0], user_id=row[0]),

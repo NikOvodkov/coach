@@ -57,8 +57,9 @@ async def no_enter_date(message: Message, state: FSMContext, db: SQLiteDatabase)
         user = db.select_row(table='Users', user_id=message.from_user.id)
         path = str(Path.cwd() / Path('tg_bot', 'utils', f'{datetime.now().strftime("%Y%m%d%H%M%S%f")}.gif'))
         logger.debug(f'{path=}')
-        await generate_image_calendar(user[4], user[5], 'week', path)
-        await message.answer_photo(photo=FSInputFile(path), reply_markup=ReplyKeyboardRemove())
+        lived_weeks = await generate_image_calendar(user[4], user[5], 'week', path)
+        await message.answer_photo(photo=FSInputFile(path), reply_markup=ReplyKeyboardRemove(),
+                                   caption=f'Сейчас идёт неделя {lived_weeks+1}')
         os.remove(path)
         # если пользователь подписан на еженедельную рассылку календаря, обнуляем состояние
         if user[6]:
@@ -134,8 +135,9 @@ async def oldster_enter_date(message: Message, state: FSMContext, db: SQLiteData
         db.update_cell(table='Users', cell='life_date', cell_value=life_date, key='user_id', key_value=message.from_user.id)
         path = str(Path.cwd() / Path('tg_bot', 'utils', f'{datetime.now().strftime("%Y%m%d%H%M%S%f")}.gif'))
         logger.debug(f'{path=}')
-        await generate_image_calendar(date, life_date, 'week', path)
-        await message.answer_photo(photo=FSInputFile(path), reply_markup=ReplyKeyboardRemove())
+        lived_weeks = await generate_image_calendar(date, life_date, 'week', path)
+        await message.answer_photo(photo=FSInputFile(path), reply_markup=ReplyKeyboardRemove(),
+                                   caption=f'Сейчас идёт неделя {lived_weeks+1}')
         os.remove(path)
         if user[6]:
             await state.clear()
