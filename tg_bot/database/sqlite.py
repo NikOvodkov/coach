@@ -209,17 +209,24 @@ class SQLiteDatabase:
         duration_min int, /* общая реальная длительность тренировки в минутах */
         consumption_cal int, /* затраты энергии за время тренировок в калориях, включая перерывы */
         heart_load int, /* нагрузка на сердце в неясных пока величинах */
+        date varchar, /* дата тренировки */
         PRIMARY KEY (workout_id)
         );
         '''
         self.execute(sql, commit=True)
 
     def add_workout(self, user_id: int, exercise_id: int, exercises_list: str, duration_min: int = None,
-                    consumption_cal: int = None, heart_load: int = None):
-        sql = ('INSERT INTO Workouts (workout_id, user_id, exercise_id, exercises_list, duration_min, consumption_cal, heart_load) '
-               'VALUES(?,?,?,?,?,?,?)')
-        parameters = (self.count_rows('Workouts')[0], user_id, exercise_id, exercises_list, duration_min, consumption_cal, heart_load)
+                    consumption_cal: int = None, heart_load: int = None, date: str = None):
+        sql = ('INSERT INTO Workouts (workout_id, user_id, exercise_id, exercises_list, '
+               'duration_min, consumption_cal, heart_load, date) '
+               'VALUES(?,?,?,?,?,?,?,?)')
+        parameters = (self.count_rows('Workouts')[0], user_id, exercise_id, exercises_list,
+                      duration_min, consumption_cal, heart_load, date)
         self.execute(sql, parameters=parameters, commit=True)
+
+    def add_column(self, table: str, name: str):
+        sql = f'ALTER TABLE {table} ADD COLUMN {name} varchar'
+        self.execute(sql, commit=True)
 
     def select_last_workout(self, user_id: int, exercise_id: int):
         sql = f'SELECT * FROM Workouts WHERE user_id = {user_id} AND exercise_id = {exercise_id} ORDER BY workout_id DESC'
@@ -237,33 +244,33 @@ class SQLiteDatabase:
     def count_users(self):
         return self.execute('SELECT COUNT(*) FROM Users;', fetchone=True)
 
-    def update_email(self, email, user_id):
-        sql = 'UPDATE Users SET email=? WHERE user_id=?'
-        return self.execute(sql, parameters=(email, user_id), commit=True)
-
-    def update_time_zone(self, time_zone, user_id):
-        sql = 'UPDATE Users SET time_zone=? WHERE user_id=?'
-        return self.execute(sql, parameters=(time_zone, user_id), commit=True)
-
-    def update_birth_date(self, birth_date, user_id):
-        sql = 'UPDATE Users SET birth_date=? WHERE user_id=?'
-        return self.execute(sql, parameters=(birth_date, user_id), commit=True)
-
-    def update_life_date(self, life_date, user_id):
-        sql = 'UPDATE Users SET life_date=? WHERE user_id=?'
-        return self.execute(sql, parameters=(life_date, user_id), commit=True)
-
-    def update_life_calendar(self, life_calendar, user_id):
-        sql = 'UPDATE Users SET life_calendar=? WHERE user_id=?'
-        return self.execute(sql, parameters=(life_calendar, user_id), commit=True)
-
-    def update_latitude(self, latitude, user_id):
-        sql = 'UPDATE Users SET latitude=? WHERE user_id=?'
-        return self.execute(sql, parameters=(latitude, user_id), commit=True)
-
-    def update_longitude(self, longitude, user_id):
-        sql = 'UPDATE Users SET longitude=? WHERE user_id=?'
-        return self.execute(sql, parameters=(longitude, user_id), commit=True)
+    # def update_email(self, email, user_id):
+    #     sql = 'UPDATE Users SET email=? WHERE user_id=?'
+    #     return self.execute(sql, parameters=(email, user_id), commit=True)
+    #
+    # def update_time_zone(self, time_zone, user_id):
+    #     sql = 'UPDATE Users SET time_zone=? WHERE user_id=?'
+    #     return self.execute(sql, parameters=(time_zone, user_id), commit=True)
+    #
+    # def update_birth_date(self, birth_date, user_id):
+    #     sql = 'UPDATE Users SET birth_date=? WHERE user_id=?'
+    #     return self.execute(sql, parameters=(birth_date, user_id), commit=True)
+    #
+    # def update_life_date(self, life_date, user_id):
+    #     sql = 'UPDATE Users SET life_date=? WHERE user_id=?'
+    #     return self.execute(sql, parameters=(life_date, user_id), commit=True)
+    #
+    # def update_life_calendar(self, life_calendar, user_id):
+    #     sql = 'UPDATE Users SET life_calendar=? WHERE user_id=?'
+    #     return self.execute(sql, parameters=(life_calendar, user_id), commit=True)
+    #
+    # def update_latitude(self, latitude, user_id):
+    #     sql = 'UPDATE Users SET latitude=? WHERE user_id=?'
+    #     return self.execute(sql, parameters=(latitude, user_id), commit=True)
+    #
+    # def update_longitude(self, longitude, user_id):
+    #     sql = 'UPDATE Users SET longitude=? WHERE user_id=?'
+    #     return self.execute(sql, parameters=(longitude, user_id), commit=True)
 
     def delete_users(self):
         self.execute('DELETE FROM Users WHERE True')

@@ -9,6 +9,7 @@ from aiogram.types import Message, ReplyKeyboardRemove, FSInputFile, URLInputFil
 from aiogram.utils.markdown import hide_link
 from aiogram.utils.media_group import MediaGroupBuilder
 
+from logging_settings import logger
 from tg_bot.database.sqlite import SQLiteDatabase
 from tg_bot.keyboards.trener import yesno, ready
 from tg_bot.lexicon.life_calendar import LEXICON_RU
@@ -92,9 +93,9 @@ async def start_trener(message: Message, state: FSMContext, db: SQLiteDatabase):
 async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase):
     data = await state.get_data()
     delete_list = data['delete_list']
-    # user = db.select_user(user_id=message.from_user.id)
     user = db.select_row(table='Users', user_id=message.from_user.id)
     await state.update_data(exercise_id=int(message.text))
+    time_start = datetime.utcnow().timestamp()
     last_workout = db.select_last_workout(user_id=user[0], exercise_id=int(message.text))
     exercise = db.select_row(table='Exercises_base', exercise_id=int(message.text))
 
@@ -126,8 +127,11 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase)
         reply_markup=ready)
     delete_list.append(msg.message_id)
     delete_list.append(message.message_id)
+    await state.update_data(time_start=time_start)
     await state.update_data(delete_list=delete_list)
     await state.update_data(new_workout=new_workout_split)
+    data = await state.get_data()
+    logger.debug(f'{data=}')
     await state.set_state(FSMTrener.workout_process_1)
 
 
@@ -258,6 +262,9 @@ async def workout_process_4(message: Message, state: FSMContext, db: SQLiteDatab
 @router.message(F.text, StateFilter(FSMTrener.workout_done))
 async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase):
     data = await state.get_data()
+    time_finish = datetime.utcnow().timestamp()
+    time_duration = round((time_finish - data['time_start']) / 60)
+    logger.debug(f'{time_duration=}')
     delete_list = data['delete_list']
     delete_list.append(message.message_id)
     # user = db.select_user(user_id=message.from_user.id)
@@ -266,7 +273,8 @@ async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase):
     data = await state.get_data()
     data['done_workout'].append(str(last_repeat))
     done_workout = ' '.join(data['done_workout'])
-    db.add_workout(user[0], data['exercise_id'], done_workout)
+    db.add_workout(user_id=user[0], exercise_id=data['exercise_id'], exercises_list=done_workout,
+                   date=datetime.today().strftime('%d-%m-%Y'), duration_min=time_duration)
     await message.answer(text=f"Тренировка сохранена: упражнение №{data['exercise_id']}, подходы {done_workout}. "
                               f"Рекомендованный перерыв между тренировками одного упражнения - от 2 до 7 дней. "
                               f"Если перерыв будет более 7 дней, прогресс может отсутствовать.")
