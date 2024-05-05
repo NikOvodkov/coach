@@ -48,7 +48,7 @@ async def show_statistics(message: Message, state: FSMContext, db: SQLiteDatabas
     logger.debug(workouts)
     msg = ''
     for workout in workouts:
-        msg = msg + f'{workout[7]}: exercise #{workout[2]}: sets {workout[3]}: {workout[4]} min \n'
+        msg = msg + f'{workout[7]}:#{workout[2]}: {workout[3]}: {workout[4]}min \n'
     await message.answer(text=msg)
     await state.clear()
 
