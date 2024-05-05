@@ -42,6 +42,17 @@ async def get_multimedia(message: Message, state: FSMContext, db: SQLiteDatabase
                        cell_value=message.animation.file_unique_id, key='exercise_id', key_value=int(message.caption))
 
 
+@router.message(Command(commands='statistics'))
+async def show_statistics(message: Message, state: FSMContext, db: SQLiteDatabase):
+    workouts = db.select_rows(table='Workouts', user_id=message.from_user.id)
+    logger.debug(workouts)
+    msg = ''
+    for workout in workouts:
+        msg = msg + f'{workout[7]}: exercise #{workout[2]}: sets {workout[3]}: {workout[4]} min \n'
+    await message.answer(text=msg)
+    await state.clear()
+
+
 @router.message(Command(commands='fitness'))
 async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase):
     delete_list = []

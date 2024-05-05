@@ -7,6 +7,7 @@ async def set_default_commands(bot: Bot):
         commands=[
             BotCommand(command='start', description='Начать работу/ Сброс'),
             BotCommand(command='fitness', description='Фитнес'),
+            BotCommand(command='statistics', description='Статистика'),
             BotCommand(command='life_calendar', description='Календарь жизни'),
             BotCommand(command='about', description='О боте'),
             BotCommand(command='help', description='Помощь')
@@ -19,10 +20,11 @@ async def set_admins_commands(bot: Bot, chat_id: int):
     return await bot.set_my_commands(
         commands=[
             BotCommand(command='gsheet', description='Обработать новые номера'),
+            BotCommand(command='life_calendar', description='Календарь жизни'),
             BotCommand(command='fitness', description='Фитнес'),
+            BotCommand(command='statistics', description='Статистика'),
             BotCommand(command='atomy', description='Проверить покупателя'),
             BotCommand(command='test_location', description='Тест локации'),
-            BotCommand(command='life_calendar', description='Календарь жизни'),
             BotCommand(command='sql_db', description='Редактировать БД'),
             BotCommand(command='start', description='Рестарт бота'),
             BotCommand(command='email', description='Сменить почту'),
@@ -39,6 +41,7 @@ async def set_starting_commands(bot: Bot, chat_id: int):
         'ru': [
             BotCommand(command='start', description='Начать работу/ Сброс'),
             BotCommand(command='fitness', description='Фитнес'),
+            BotCommand(command='statistics', description='Статистика'),
             BotCommand(command='life_calendar', description='Календарь жизни'),
             BotCommand(command='about', description='О боте'),
             BotCommand(command='help', description='Помощь')
@@ -46,6 +49,7 @@ async def set_starting_commands(bot: Bot, chat_id: int):
         'en': [
             BotCommand(command='start', description='Begin to work'),
             BotCommand(command='fitness', description='Get workout'),
+            BotCommand(command='statistics', description='Statistics'),
             BotCommand(command='life_calendar', description='Get life calendar'),
             BotCommand(command='about', description='Get information'),
             BotCommand(command='help', description='Get help')
@@ -120,6 +124,7 @@ async def set_all_private_commands(bot: Bot):
         commands=[
             BotCommand(command='start', description='Начать работу/ Сброс'),
             BotCommand(command='fitness', description='Фитнес'),
+            BotCommand(command='statistics', description='Статистика'),
             BotCommand(command='life_calendar', description='Календарь жизни'),
             BotCommand(command='about', description='О боте'),
             BotCommand(command='help', description='Помощь')

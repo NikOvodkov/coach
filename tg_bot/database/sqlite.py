@@ -54,6 +54,11 @@ class SQLiteDatabase:
         sql, parameters = self.format_args(sql, kwargs)
         return self.execute(sql, parameters, fetchone=True)
 
+    def select_rows(self, table, **kwargs):
+        sql = f'SELECT * FROM {table} WHERE '
+        sql, parameters = self.format_args(sql, kwargs)
+        return self.execute(sql, parameters, fetchall=True)
+
     def create_table_users(self):
         sql = '''
         CREATE TABLE IF NOT EXISTS Users (
