@@ -113,6 +113,40 @@ async def gsheets(file: str, worksheet: str, google_docs_key: str):
     return lst
 
 
+async def del_black_list(file: str, worksheet: str, black_list: str, google_docs_key: str):
+    # Делаем паузу, чтобы успеть открыть гугл таблицу для контроля процесса
+    # Указываем путь к JSON файлу с ключом google docs
+    gc = gspread.service_account(filename=google_docs_key)
+    # Подключаемся к таблице
+    sh = gc.open(file)
+    # Считываем листы
+    worksheet = sh.worksheet(worksheet)
+    black_list = sh.worksheet(black_list)
+    black_number = black_list.cell(2, 1).value
+    while black_number:
+        await asyncio.sleep(1)
+        # Считываем колонку с номерами
+        black_number = black_list.cell(2, 1).value
+        logger.debug(f'{black_number=}')
+        new_number = black_number
+        if str(black_number)[0] == '8':
+            logger.debug('change 8->7')
+            # меняем первую цифру на 7
+            new_number = '7' + black_number[1:]
+            black_list.update_cell(2, 1, new_number)
+        # Находим номер колонки с заголовком msisdn
+        finded_cell = worksheet.find(new_number, in_column=1)
+        logger.debug(f'{finded_cell=}')
+        if finded_cell:
+            worksheet.delete_row(finded_cell.row)
+            logger.debug('row deleted')
+        else:
+            black_list.delete_row(2)
+            logger.debug('black_list row deleted')
+    return
+
+
+
 def add_operators_to_numbers_from_csv(csv_file: str, sep: str = ',', path: str = 'C:\\Users\\nikov\\Downloads\\'):
     with open(path + csv_file, "r", encoding="utf-8") as input_file:
         with open(f"{path}_{csv_file}", "w", encoding="utf-8") as output_file:
@@ -138,9 +172,9 @@ def add_operators_to_numbers_from_csv(csv_file: str, sep: str = ',', path: str =
 
 
 if __name__ == '__main__':
-    asyncio.run(gsheets(
+    asyncio.run(del_black_list(
         file='Example',
-        worksheet='Finsburg',
+        worksheet='Finsburg', black_list='ЧС Finsburg',
         google_docs_key=str(Path.cwd().parent / Path('keys', 'gsheet.json'))))
 
     # print(get_operator_from_number('9043330778'))

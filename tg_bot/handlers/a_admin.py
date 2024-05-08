@@ -1,12 +1,13 @@
 import sqlite3
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, BotCommandScopeChat
+from aiogram.types import Message, BotCommandScopeChat, CallbackQuery
 
 from logging_settings import logger
 from tg_bot.database.sqlite import SQLiteDatabase
 from tg_bot.filters.admin import IsAdmin
+from tg_bot.keyboards.inline import keyboard
 from tg_bot.services.setting_commands import set_admins_commands, set_chat_admins_commands
 from tg_bot.config import load_config
 
@@ -24,20 +25,44 @@ async def admin_start(message: Message, db: SQLiteDatabase, state: FSMContext):
         await state.clear()
     await set_admins_commands(message.bot, message.from_user.id)
     name = message.from_user.full_name
+
     try:
         db.add_user(user_id=message.from_user.id, name=name)
     except sqlite3.IntegrityError as err:
         # print(err)
         logger.exception(err)
-    # count_users = db.count_users()[0]
-    count_users = db.count_rows('Users')[0]
-    await message.answer(
-        '\n'.join([
-            f'Привет, админ {message.from_user.full_name}!',
-            f'Ты был занесён в базу',
-            f'В базе <b>{count_users}</b> пользователей'
-        ]))
+    finally:
+        count_users = db.count_rows('Users')[0]
+        await message.answer(
+            '\n'.join([
+                f'Привет, админ {message.from_user.full_name}!',
+                f'Ты был занесён в базу',
+                f'В базе <b>{count_users}</b> пользователей'
+            ]), reply_markup=keyboard)
 
+
+# Этот хэндлер будет срабатывать на апдейт типа CallbackQuery
+# с data 'big_button_1_pressed'
+@router.callback_query(F.data == 'big_button_1_pressed')
+async def process_button_1_press(callback: CallbackQuery):
+    if callback.message.text != 'Была нажата БОЛЬШАЯ КНОПКА 1':
+        await callback.message.edit_text(
+            text='Была нажата БОЛЬШАЯ КНОПКА 1',
+            reply_markup=callback.message.reply_markup
+        )
+    await callback.answer()
+
+
+# Этот хэндлер будет срабатывать на апдейт типа CallbackQuery
+# с data 'big_button_2_pressed'
+@router.callback_query(F.data == 'big_button_2_pressed')
+async def process_button_2_press(callback: CallbackQuery):
+    if callback.message.text != 'Была нажата БОЛЬШАЯ КНОПКА 2':
+        await callback.message.edit_text(
+            text='Была нажата БОЛЬШАЯ КНОПКА 2',
+            reply_markup=callback.message.reply_markup
+        )
+    await callback.answer()
 
 def quote_html(arg):
     pass

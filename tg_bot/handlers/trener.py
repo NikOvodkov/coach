@@ -5,13 +5,13 @@ from pathlib import Path
 from aiogram import Router, F, types, Bot
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, ReplyKeyboardRemove, FSInputFile, URLInputFile, InputMediaVideo, InputFile
+from aiogram.types import Message, ReplyKeyboardRemove, FSInputFile, URLInputFile, InputMediaVideo, InputFile, CallbackQuery
 from aiogram.utils.markdown import hide_link
 from aiogram.utils.media_group import MediaGroupBuilder
 
 from logging_settings import logger
 from tg_bot.database.sqlite import SQLiteDatabase
-from tg_bot.keyboards.trener import yesno, ready
+from tg_bot.keyboards.trener import yesno, ready, ready_in, yesno_in
 from tg_bot.lexicon.life_calendar import LEXICON_RU
 from tg_bot.states.trener import FSMTrener
 from tg_bot.utils.life_calendar import generate_image_calendar
@@ -22,8 +22,8 @@ from tg_bot.utils.trener import generate_new_split, Split
 router = Router()
 
 
-@router.message(F.video)
-@router.message(F.animation)
+# @router.message(F.video)
+# @router.message(F.animation)
 async def get_multimedia(message: Message, state: FSMContext, db: SQLiteDatabase):
     if message.caption == 'timer':
         db.update_cell(table='Multimedia', cell='file_id',
@@ -48,7 +48,7 @@ async def show_statistics(message: Message, state: FSMContext, db: SQLiteDatabas
     logger.debug(workouts)
     msg = ''
     for workout in workouts:
-        msg = msg + f'{workout[7]}:#{workout[2]}: {workout[3]}: {workout[4]}min \n'
+        msg = msg + f'{workout[7]}:#{workout[2]}: {workout[3]}: {workout[4]}m\n'
     await message.answer(text=msg)
     await state.clear()
 
@@ -68,7 +68,7 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase)
     msg = await message.answer_video(
         video=db.select_row(table='Multimedia', name='warmup')[3],
         caption='Разминка 8 минут',
-        reply_markup=ready)
+        reply_markup=ready_in)
     delete_list.append(msg.message_id)
     delete_list.append(message.message_id)
     await state.update_data(delete_list=delete_list)
@@ -94,6 +94,31 @@ async def start_trener(message: Message, state: FSMContext, db: SQLiteDatabase):
         await state.set_state(FSMTrener.workout)
     else:
         msg = await message.answer(text='Сбой базы данных. Попробуйте еще раз или обратитесь к администратору',
+                                   reply_markup=ReplyKeyboardRemove())
+        await state.set_state(FSMTrener.show_exercises)
+    delete_list.append(msg.message_id)
+    await state.update_data(delete_list=delete_list)
+
+
+@router.callback_query(F.data == 'yes', StateFilter(FSMTrener.workout_end))
+@router.callback_query(F.data == 'ready', StateFilter(FSMTrener.show_exercises))
+async def start_trener_callback(callback: CallbackQuery, state: FSMContext, db: SQLiteDatabase):
+    data = await state.get_data()
+    delete_list = data['delete_list']
+    msg = await callback.answer(text='Выберите упражнение из списка ниже и пришлите его номер ответным сообщением.',
+                               reply_markup=ReplyKeyboardRemove())
+    # delete_list.append(msg. .message_id)
+    delete_list.append(callback.message_id)
+    await asyncio.sleep(1)
+    exercises_table = db.select_all_table('Exercises_base')
+    if exercises_table:
+        captions = []
+        for exercise in exercises_table:
+            captions.append(str(exercise[0]) + ' ' + exercise[2])
+        msg = await callback.answer(text='\n'.join(captions), reply_markup=ReplyKeyboardRemove())
+        await state.set_state(FSMTrener.workout)
+    else:
+        msg = await callback.answer(text='Сбой базы данных. Попробуйте еще раз или обратитесь к администратору',
                                    reply_markup=ReplyKeyboardRemove())
         await state.set_state(FSMTrener.show_exercises)
     delete_list.append(msg.message_id)
@@ -290,7 +315,7 @@ async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase):
                               f"Рекомендованный перерыв между тренировками одного упражнения - от 2 до 7 дней. "
                               f"Если перерыв будет более 7 дней, прогресс может отсутствовать.")
     msg = await message.answer(text=f"Если остались силы, можете выполнить ещё 5 подходов другого упражнения. Готовы?",
-                               reply_markup=yesno)
+                               reply_markup=yesno_in)
     delete_list.append(msg.message_id)
     await state.update_data(delete_list=delete_list)
     await state.set_state(FSMTrener.workout_end)

@@ -19,16 +19,19 @@ router = Router()
 # Этот хэндлер срабатывает на команду /start
 @router.message(CommandStart())
 async def process_start_command(message: Message, db: SQLiteDatabase, state: FSMContext, config: Config):
+
     await state.clear()
     await set_starting_commands(message.bot, message.from_user.id)
     name = message.from_user.full_name
+
     try:
         db.add_user(user_id=message.from_user.id, name=name)
         await message.forward(config.tg_bot.admin_ids[0])
     except sqlite3.IntegrityError as err:
         # print(err)
         logger.exception(err)
-    await message.answer(text=LEXICON_RU['/start'], reply_markup=ReplyKeyboardRemove())
+    finally:
+        await message.answer(text=LEXICON_RU['/start'], reply_markup=ReplyKeyboardRemove())
 
 
 # Этот хэндлер срабатывает на команду /about

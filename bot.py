@@ -134,6 +134,7 @@ async def main():
     dp.update.middleware(ShadowBanMiddleware())
     dp.update.middleware(ThrottlingMiddleware())
     await on_startup_notify(aiobot, config)
+    # print(await aiobot.get_webhook_info())
 
     task1 = asyncio.create_task(dp.start_polling(aiobot))
     task2 = asyncio.create_task(writelog(dp=dp))

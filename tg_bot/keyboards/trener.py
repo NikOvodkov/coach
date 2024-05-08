@@ -1,4 +1,4 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 yesno = ReplyKeyboardMarkup(
     keyboard=[
@@ -11,6 +11,30 @@ ready = ReplyKeyboardMarkup(
         [KeyboardButton(text='Готово')]
     ], one_time_keyboard=True, resize_keyboard=True
 )
+
+ready_in = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(
+            text='Готово',
+            callback_data='ready'
+        )]
+    ]
+)
+
+
+yesno_in = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(
+            text='Да',
+            callback_data='yes'
+        )],
+        [InlineKeyboardButton(
+            text='Нет',
+            callback_data='no'
+        )]
+    ]
+)
+
 
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
