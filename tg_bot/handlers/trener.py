@@ -11,7 +11,7 @@ from aiogram.utils.media_group import MediaGroupBuilder
 
 from logging_settings import logger
 from tg_bot.database.sqlite import SQLiteDatabase
-from tg_bot.keyboards.trener import yesno, ready, ready_in, yesno_in
+from tg_bot.keyboards.trener import yesno, ready
 from tg_bot.lexicon.life_calendar import LEXICON_RU
 from tg_bot.states.trener import FSMTrener
 from tg_bot.utils.life_calendar import generate_image_calendar
@@ -68,7 +68,7 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase)
     msg = await message.answer_video(
         video=db.select_row(table='Multimedia', name='warmup')[3],
         caption='Разминка 8 минут',
-        reply_markup=ready_in)
+        reply_markup=ready)
     delete_list.append(msg.message_id)
     delete_list.append(message.message_id)
     await state.update_data(delete_list=delete_list)
@@ -315,7 +315,7 @@ async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase):
                               f"Рекомендованный перерыв между тренировками одного упражнения - от 2 до 7 дней. "
                               f"Если перерыв будет более 7 дней, прогресс может отсутствовать.")
     msg = await message.answer(text=f"Если остались силы, можете выполнить ещё 5 подходов другого упражнения. Готовы?",
-                               reply_markup=yesno_in)
+                               reply_markup=yesno)
     delete_list.append(msg.message_id)
     await state.update_data(delete_list=delete_list)
     await state.set_state(FSMTrener.workout_end)
