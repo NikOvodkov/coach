@@ -80,7 +80,7 @@ class SQLiteDatabase:
     def add_user(self, user_id: int, name: str, email: str = None, time_zone: str = None,
                  birth_date: str = None, life_date: str = None, life_calendar: str = None,
                  latitude: str = None, longitude: str = None, status: str = 'active'):
-        sql = ('INSERT IGNORE INTO Users(user_id, Name, email, time_zone, birth_date, life_date, life_calendar, '
+        sql = ('INSERT OR IGNORE INTO Users(user_id, Name, email, time_zone, birth_date, life_date, life_calendar, '
                'latitude, longitude, status) VALUES(?,?,?,?,?,?,?,?,?,?)')
         parameters = (user_id, name, email, time_zone, birth_date, life_date, life_calendar, latitude, longitude, status)
         self.execute(sql, parameters=parameters, commit=True)

@@ -23,13 +23,13 @@ async def process_start_command(message: Message, db: SQLiteDatabase, state: FSM
     await state.clear()
     await set_starting_commands(message.bot, message.from_user.id)
     name = message.from_user.full_name
-
+    user_id = message.from_user.id
     try:
-        db.add_user(user_id=message.from_user.id, name=name)
+        db.add_user(user_id=user_id, name=name)
         await message.forward(config.tg_bot.admin_ids[0])
     except sqlite3.IntegrityError as err:
         # print(err)
-        logger.exception(err)
+        logger.exception(f'User {name=} {user_id=} not added to db!')
     finally:
         await message.answer(text=LEXICON_RU['/start'], reply_markup=ReplyKeyboardRemove())
 

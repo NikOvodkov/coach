@@ -19,18 +19,18 @@ router.message.filter(IsAdmin(load_config('.env').tg_bot.admin_ids))
 
 @router.message(Command('start'))
 async def admin_start(message: Message, db: SQLiteDatabase, state: FSMContext):
+    name = message.from_user.full_name
+    user_id = message.from_user.id
     cur_state = await state.get_state()
     if cur_state:
         await message.answer(text=f'State is not None: {cur_state}')
         await state.clear()
-    await set_admins_commands(message.bot, message.from_user.id)
-    name = message.from_user.full_name
-
+    await set_admins_commands(message.bot, user_id)
     try:
-        db.add_user(user_id=message.from_user.id, name=name)
+        db.add_user(user_id=user_id, name=name)
     except sqlite3.IntegrityError as err:
         # print(err)
-        logger.exception(err)
+        logger.exception(f'User {name=} {user_id=} not added to db!')
     finally:
         count_users = db.count_rows('Users')[0]
         await message.answer(
