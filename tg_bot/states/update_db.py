@@ -8,5 +8,6 @@ class FSMUpdateDb(StatesGroup):
     # бот в разные моменты взаимодейтсвия с пользователем
     email = State()
     update_db = State()
+    show_table = State()
 
 

@@ -3,6 +3,7 @@ from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
+from logging_settings import logger
 from tg_bot.config import load_config
 from tg_bot.database.sqlite import SQLiteDatabase
 from tg_bot.filters.admin import IsAdmin
@@ -36,8 +37,23 @@ async def update_db(message: Message, state: FSMContext, db: SQLiteDatabase):
     await state.set_state(FSMUpdateDb.update_db)
 
 
+@router.message(Command(commands='show_table'))
+async def update_db(message: Message, state: FSMContext, db: SQLiteDatabase):
+    await message.answer('Введите имя таблицы: ')
+    await state.set_state(FSMUpdateDb.show_table)
+
+
 @router.message(StateFilter(FSMUpdateDb.update_db))
 async def execute_sql(message: Message, state: FSMContext, db: SQLiteDatabase):
     db.execute_through_sql(message.text)
     await message.answer('Данные были обновлены.')
+    await state.clear()
+
+
+@router.message(StateFilter(FSMUpdateDb.show_table))
+async def execute_sql(message: Message, state: FSMContext, db: SQLiteDatabase):
+    table = db.select_all_table(message.text)
+    table = list(map(str, table))
+    logger.debug(table)
+    await message.answer('\n'.join(table))
     await state.clear()
