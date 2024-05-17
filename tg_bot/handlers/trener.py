@@ -339,7 +339,7 @@ async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase):
     done_workout.append(str(last_repeat))
     work = 0
     logger.debug(f'{user[11]=}')
-    exer_work = round(int(user[11]) * db.select_row(table='Exercises_base', exercise_id=data['exercise_id'])[18] / 100)
+    exer_work = round(int(user[11]) * int(db.select_row(table='Exercises_base', exercise_id=data['exercise_id'])[18]) / 100)
     logger.debug(f'{exer_work=}')
     for podhod in done_workout:
         work += int(podhod) * exer_work
