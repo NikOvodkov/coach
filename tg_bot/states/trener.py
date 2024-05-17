@@ -16,3 +16,5 @@ class FSMTrener(StatesGroup):
     workout_done = State()  # Состояние выполненной тренировки
     workout_end = State()  # Состояние выполнения тренировки
     show_exercises = State()  # Состояние в момент входа в команду Тренер
+    add_exercise = State()  # Состояние добавления или коррекции упражнения
+    enter_weight = State()  # Состояние добавления веса

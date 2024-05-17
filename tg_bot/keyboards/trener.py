@@ -71,6 +71,13 @@ exercises = ReplyKeyboardMarkup(
     ], one_time_keyboard=True, resize_keyboard=True
 )
 
+
+muscle_groups = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text='Руки'), KeyboardButton(text='Ноги'), KeyboardButton(text='Грудь')],
+        [KeyboardButton(text='Живот'), KeyboardButton(text='Спина')]
+    ], one_time_keyboard=True, resize_keyboard=True
+)
 '''
 # ------- Создаем клавиатуру через ReplyKeyboardBuilder -------
 

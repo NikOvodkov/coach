@@ -56,11 +56,39 @@ async def show_statistics(message: Message, state: FSMContext, db: SQLiteDatabas
 @router.message(Command(commands='fitness'))
 async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase):
     delete_list = []
+    user = db.select_table('Users', user_id=message.from_user.id)
+    if user[11] is None:
+        msg = await message.answer(text='Введите свой вес (целое число): ',
+                                   reply_markup=ReplyKeyboardRemove())
+        delete_list.append(msg.message_id)
+        await state.set_state(FSMTrener.enter_weight)
+    else:
+        msg = await message.answer(
+            text=f'Личный тренер приветствует вас!\n Выполните разминку из видео ниже, вы можете делать упражнения в удобном для вас темпе: '
+                 f'быстрее или медленнее чем показано в видео. Обратите внимание, красным цветом выделены '
+                 f'мышцы, на которые делается акцент в упражнении. Вы можете выполнить другую разминку, '
+                 f'вместо представленной, но важно, чтобы она разогревала все мышцы и связки от шеи до ступней.')
+        delete_list.append(msg.message_id)
+        msg = await message.answer_video(
+            video=db.select_row(table='Multimedia', name='warmup')[3],
+            caption='Разминка 8 минут',
+            reply_markup=ready)
+        delete_list.append(msg.message_id)
+        await state.set_state(FSMTrener.show_exercises)
+
+    delete_list.append(message.message_id)
+    await state.update_data(delete_list=delete_list)
+
+
+@router.message(F.text, StateFilter(FSMTrener.enter_weight))
+async def enter_weight(message: Message, state: FSMContext, db: SQLiteDatabase):
+    delete_list = []
+    if message.text.isdigit():
+        db.update_cell(table='Users', cell='weight', cell_value=int(message.text), key='user_id', key_value=message.from_user.id)
     # msg = await message.answer(text=f'Личный тренер приветствует вас! Сперва выполните разминку: \n'
     #                                 f'{hide_link("https://www.youtube.com/watch?v=mU2K1Z17yLg")}', reply_markup=ready)
     msg = await message.answer(
-        text=f'Личный тренер приветствует вас!\n'
-             f'Сперва выполните разминку из видео ниже, вы можете делать упражнения в удобном для вас темпе: '
+        text=f'Личный тренер приветствует вас!\n Выполните разминку из видео ниже, вы можете делать упражнения в удобном для вас темпе: '
              f'быстрее или медленнее чем показано в видео. Обратите внимание, красным цветом выделены '
              f'мышцы, на которые делается акцент в упражнении. Вы можете выполнить другую разминку, '
              f'вместо представленной, но важно, чтобы она разогревала все мышцы и связки от шеи до ступней.')
@@ -106,7 +134,7 @@ async def start_trener_callback(callback: CallbackQuery, state: FSMContext, db: 
     data = await state.get_data()
     delete_list = data['delete_list']
     msg = await callback.answer(text='Выберите упражнение из списка ниже и пришлите его номер ответным сообщением.',
-                               reply_markup=ReplyKeyboardRemove())
+                                reply_markup=ReplyKeyboardRemove())
     # delete_list.append(msg. .message_id)
     delete_list.append(callback.message_id)
     await asyncio.sleep(1)
@@ -119,7 +147,7 @@ async def start_trener_callback(callback: CallbackQuery, state: FSMContext, db: 
         await state.set_state(FSMTrener.workout)
     else:
         msg = await callback.answer(text='Сбой базы данных. Попробуйте еще раз или обратитесь к администратору',
-                                   reply_markup=ReplyKeyboardRemove())
+                                    reply_markup=ReplyKeyboardRemove())
         await state.set_state(FSMTrener.show_exercises)
     delete_list.append(msg.message_id)
     await state.update_data(delete_list=delete_list)
@@ -306,11 +334,27 @@ async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase):
     # user = db.select_user(user_id=message.from_user.id)
     user = db.select_row(table='Users', user_id=message.from_user.id)
     last_repeat = int(message.text.strip())
-    data = await state.get_data()
-    data['done_workout'].append(str(last_repeat))
-    done_workout = ' '.join(data['done_workout'])
+    # data = await state.get_data()
+    done_workout = data['done_workout']
+    done_workout.append(str(last_repeat))
+    work = 0
+    logger.debug(f'{user[11]=}')
+    exer_work = round(int(user[11]) * db.select_row(table='Exercises_base', exercise_id=data['exercise_id'])[18] / 100)
+    logger.debug(f'{exer_work=}')
+    for podhod in done_workout:
+        work += int(podhod) * exer_work
+    logger.debug(f'{work=}')
+    done_workout = ' '.join(done_workout)
+    logger.debug(db.select_row('Muscles_exercises_base', exercise_id=data['exercise_id'], muscle_group_id=0))
+    arms_work = work * db.select_row('Muscles_exercises_base', exercise_id=data['exercise_id'], muscle_group_id=0)[4]
+    logger.debug(f'{arms_work=}')
+    legs_work = work * db.select_row('Muscles_exercises_base', exercise_id=data['exercise_id'], muscle_group_id=1)[4]
+    chest_work = work * db.select_row('Muscles_exercises_base', exercise_id=data['exercise_id'], muscle_group_id=2)[4]
+    abs_work = work * db.select_row('Muscles_exercises_base', exercise_id=data['exercise_id'], muscle_group_id=3)[4]
+    back_work = work * db.select_row('Muscles_exercises_base', exercise_id=data['exercise_id'], muscle_group_id=4)[4]
     db.add_workout(user_id=user[0], exercise_id=data['exercise_id'], exercises_list=done_workout,
-                   date=datetime.today().strftime('%d-%m-%Y'), duration_min=time_duration)
+                   date=datetime.today().strftime('%d-%m-%Y'), duration_min=time_duration, work=work,
+                   arms=arms_work, legs=legs_work, chest=chest_work, abs=abs_work, back=back_work)
     await message.answer(text=f"Тренировка сохранена: упражнение №{data['exercise_id']}, подходы {done_workout}. "
                               f"Рекомендованный перерыв между тренировками одного упражнения - от 2 до 7 дней. "
                               f"Если перерыв будет более 7 дней, прогресс может отсутствовать.")

@@ -22,6 +22,7 @@ async def set_admins_commands(bot: Bot, chat_id: int):
             BotCommand(command='gsheet', description='Обработать новые номера'),
             BotCommand(command='life_calendar', description='Календарь жизни'),
             BotCommand(command='fitness', description='Фитнес'),
+            BotCommand(command='add_exercise', description='Добавить упражнение'),
             BotCommand(command='statistics', description='Статистика'),
             BotCommand(command='atomy', description='Проверить покупателя'),
             BotCommand(command='test_location', description='Тест локации'),

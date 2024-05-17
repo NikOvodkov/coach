@@ -62,7 +62,7 @@ class SQLiteDatabase:
     def create_table_users(self):
         sql = '''
         CREATE TABLE IF NOT EXISTS Users (
-        user_id int NOT NULL,
+        user_id INTEGER PRIMARY KEY AUTOINCREMENT,
         Name varchar(255) NOT NULL,
         email varchar(255),
         time_zone varchar(10),
@@ -71,24 +71,27 @@ class SQLiteDatabase:
         life_calendar varchar(255),  /* дата следующего получения календаря, либо None */
         latitude varchar(255),
         longitude varchar(255),
-        status varchar(10) NOT NULL, /* inactive, если пользователь бота заблокировал, иначе active */
-        PRIMARY KEY (user_id)
+        status varchar(10) NOT NULL,  /* inactive, если пользователь бота заблокировал, иначе active */
+        trener_sub varchar,
+        weight int
         );
         '''
         self.execute(sql, commit=True)
 
     def add_user(self, user_id: int, name: str, email: str = None, time_zone: str = None,
                  birth_date: str = None, life_date: str = None, life_calendar: str = None,
-                 latitude: str = None, longitude: str = None, status: str = 'active'):
+                 latitude: str = None, longitude: str = None, status: str = 'active',
+                 trener_sub: str = None, weight: int = None):
         sql = ('INSERT OR IGNORE INTO Users(user_id, Name, email, time_zone, birth_date, life_date, life_calendar, '
-               'latitude, longitude, status) VALUES(?,?,?,?,?,?,?,?,?,?)')
-        parameters = (user_id, name, email, time_zone, birth_date, life_date, life_calendar, latitude, longitude, status)
+               'latitude, longitude, status, trener_sub, weight) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+        parameters = (user_id, name, email, time_zone, birth_date, life_date, life_calendar,
+                      latitude, longitude, status, trener_sub, weight)
         self.execute(sql, parameters=parameters, commit=True)
 
     def create_table_exercises_base(self):  # таблица содержит неповторяющийся список уникальных упражнений
         sql = '''
         CREATE TABLE IF NOT EXISTS Exercises_base (
-        exercise_id int NOT NULL,
+        exercise_id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id int NOT NULL,  /* id пользователя, внёсшего упражнение в базу */
         Name varchar(255) NOT NULL,
         muscle_list varchar, /* список кортежей мышца-распределённая на неё нагрузка */
@@ -104,32 +107,37 @@ class SQLiteDatabase:
         description_video blob,
         description_sound_link varchar,
         description_sound blob,
-        PRIMARY KEY (exercise_id)
+        file_id varchar,
+        file_unique_id varchar,
+        work int
         );
         '''
         self.execute(sql, commit=True)
 
-    def add_exercise_base(self, user_id: int, name: str, description: str = None, muscle_list: str = None,
+    def add_exercise_base(self, exercise_id: int, user_id: int, name: str, description: str = None, muscle_list: str = None,
                           duration_sec: int = None, consumption_cal: int = None, heart_load: int = None,
                           description_animation_link: str = None, description_animation: str = None,
                           description_picture_link: str = None, description_picture: str = None,
                           description_video_link: str = None, description_video: str = None,
-                          description_sound_link: str = None, description_sound: str = None):
+                          description_sound_link: str = None, description_sound: str = None,
+                          file_id: str = None, file_unique_id: str = None, work: int = None):
         sql = ('INSERT INTO Exercises_base (exercise_id, user_id, Name, description, muscle_list, '
                'duration_sec, consumption_cal, heart_load, '
                'description_animation_link, description_animation, description_picture_link, description_picture, '
-               'description_video_link, description_video, description_sound_link, description_sound) '
-               'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-        parameters = (self.count_rows('Exercises_base')[0], user_id, name, description, muscle_list, duration_sec, consumption_cal, heart_load,
+               'description_video_link, description_video, description_sound_link, description_sound, '
+               'file_id, file_unique_id, work) '
+               'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        parameters = (exercise_id, user_id, name, description, muscle_list, duration_sec, consumption_cal, heart_load,
                       description_animation_link, description_animation, description_picture_link, description_picture,
-                      description_video_link, description_video, description_sound_link, description_sound)
+                      description_video_link, description_video, description_sound_link, description_sound,
+                      file_id, file_unique_id, work)
         self.execute(sql, parameters=parameters, commit=True)
 
     # таблица содержит неповторяющийся список уникальных мышц (около 600 штук)
     def create_table_muscles_base(self):
         sql = '''
         CREATE TABLE IF NOT EXISTS Muscles_base (
-        muscle_id int NOT NULL,
+        muscle_id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id int NOT NULL, /* id пользователя, которые внёс мышцу в базу данных */
         Name varchar(255) NOT NULL,
         length_mm int, /* длина мышцы в мм */
@@ -149,8 +157,7 @@ class SQLiteDatabase:
         description_video_link varchar,
         description_video blob,
         description_sound_link varchar,
-        description_sound blob,
-        PRIMARY KEY (muscle_id)
+        description_sound blob
         );
         '''
         self.execute(sql, commit=True)
@@ -178,7 +185,7 @@ class SQLiteDatabase:
     def create_table_muscles_user(self):
         sql = '''
             CREATE TABLE IF NOT EXISTS Muscles_user (
-            muscle_id int NOT NULL,
+            muscle_id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id int NOT NULL, /* id пользователя, хозяина мышцы */
             length_mm int, /* длина мышцы в мм */
             strength int, /* сила мышцы, относительная величина, пока методика расчёта не ясна */
@@ -187,8 +194,7 @@ class SQLiteDatabase:
             fibers int, /* всего волокон в мышце */
             fiber_thickness_microns int, /* толщина волокна мышцы в мкм */
             endurance int, /* выносливость в неясных пока величинах */
-            heart_load int, /* нагрузка на сердце в неясных пока величинах */
-            PRIMARY KEY (muscle_id)
+            heart_load int /* нагрузка на сердце в неясных пока величинах */
             );
             '''
         self.execute(sql, commit=True)
@@ -207,7 +213,7 @@ class SQLiteDatabase:
     def create_table_workouts(self):
         sql = '''
         CREATE TABLE IF NOT EXISTS Workouts (
-        workout_id int NOT NULL,
+        workout_id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id int NOT NULL,
         exercise_id, /* поле для тренировок из одного упражнения */
         exercises_list varchar, /* список кортежей вида упражнение-количество повторений-время отдыха */
@@ -215,18 +221,60 @@ class SQLiteDatabase:
         consumption_cal int, /* затраты энергии за время тренировок в калориях, включая перерывы */
         heart_load int, /* нагрузка на сердце в неясных пока величинах */
         date varchar, /* дата тренировки */
-        PRIMARY KEY (workout_id)
+        work int,
+        arms float,
+        legs float,
+        chest float,
+        abs float,
+        back float
         );
         '''
         self.execute(sql, commit=True)
 
     def add_workout(self, user_id: int, exercise_id: int, exercises_list: str, duration_min: int = None,
-                    consumption_cal: int = None, heart_load: int = None, date: str = None):
+                    consumption_cal: int = None, heart_load: int = None, date: str = None, work: int = None,
+                    arms: float = None, legs: float = None, chest: float = None, abs: float = None, back: float = None):
         sql = ('INSERT INTO Workouts (workout_id, user_id, exercise_id, exercises_list, '
-               'duration_min, consumption_cal, heart_load, date) '
-               'VALUES(?,?,?,?,?,?,?,?)')
+               'duration_min, consumption_cal, heart_load, date, work, arms, legs, chest, abs, back) '
+               'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
         parameters = (self.count_rows('Workouts')[0], user_id, exercise_id, exercises_list,
-                      duration_min, consumption_cal, heart_load, date)
+                      duration_min, consumption_cal, heart_load, date, work, arms, legs, chest, abs, back)
+        self.execute(sql, parameters=parameters, commit=True)
+
+    # таблица содержит список групп мышц
+    def create_table_muscle_groups(self):
+        sql = '''
+           CREATE TABLE IF NOT EXISTS Muscle_groups_base (
+           group_id INTEGER PRIMARY KEY AUTOINCREMENT,
+           name varchar NOT NULL, /* имя мышечной группы */
+           mass real /* относительная масса мышечной группы */
+           );
+           '''
+        self.execute(sql, commit=True)
+
+    def add_muscle_group(self, group_id: int, name: str, mass: float):
+        sql = 'INSERT OR IGNORE INTO Muscle_groups_base (group_id, name, mass) VALUES(?,?,?)'
+        parameters = (group_id, name, mass)
+        self.execute(sql, parameters=parameters, commit=True)
+
+    # таблица содержит список групп мышц
+    def create_table_muscles_exercises_base(self):
+        sql = '''
+           CREATE TABLE IF NOT EXISTS Muscles_exercises_base (
+           exercise_id INTEGER PRIMARY KEY,
+           exercise_name varchar NOT NULL, /* название упражнения */
+           muscle_group_id INTEGER,
+           muscle_group_name varchar NOT NULL, /* имя мышечной группы */
+           load real /* относительная загрузка мышечной группы */
+           );
+           '''
+        self.execute(sql, commit=True)
+
+    def add_muscles_exercises(self, exercise_id: int, exercise_name: str, muscle_group_id: int,
+                              muscle_group_name: str, load: float):
+        sql = ('INSERT OR IGNORE INTO Muscles_exercises_base (exercise_id, exercise_name, muscle_group_id,'
+               'muscle_group_name, load) VALUES(?,?,?,?,?)')
+        parameters = (exercise_id, exercise_name, muscle_group_id, muscle_group_name, load)
         self.execute(sql, parameters=parameters, commit=True)
 
     def add_column(self, table: str, name: str):
@@ -246,39 +294,16 @@ class SQLiteDatabase:
         sql, parameters = self.format_args(sql, kwargs)
         return self.execute(sql, parameters, fetchone=True)
 
+    def select_table(self, table, **kwargs):
+        sql = f'SELECT * FROM {table} WHERE '
+        sql, parameters = self.format_args(sql, kwargs)
+        return self.execute(sql, parameters, fetchone=True)
+
     def count_users(self):
         return self.execute('SELECT COUNT(*) FROM Users;', fetchone=True)
 
-    # def update_email(self, email, user_id):
-    #     sql = 'UPDATE Users SET email=? WHERE user_id=?'
-    #     return self.execute(sql, parameters=(email, user_id), commit=True)
-    #
-    # def update_time_zone(self, time_zone, user_id):
-    #     sql = 'UPDATE Users SET time_zone=? WHERE user_id=?'
-    #     return self.execute(sql, parameters=(time_zone, user_id), commit=True)
-    #
-    # def update_birth_date(self, birth_date, user_id):
-    #     sql = 'UPDATE Users SET birth_date=? WHERE user_id=?'
-    #     return self.execute(sql, parameters=(birth_date, user_id), commit=True)
-    #
-    # def update_life_date(self, life_date, user_id):
-    #     sql = 'UPDATE Users SET life_date=? WHERE user_id=?'
-    #     return self.execute(sql, parameters=(life_date, user_id), commit=True)
-    #
-    # def update_life_calendar(self, life_calendar, user_id):
-    #     sql = 'UPDATE Users SET life_calendar=? WHERE user_id=?'
-    #     return self.execute(sql, parameters=(life_calendar, user_id), commit=True)
-    #
-    # def update_latitude(self, latitude, user_id):
-    #     sql = 'UPDATE Users SET latitude=? WHERE user_id=?'
-    #     return self.execute(sql, parameters=(latitude, user_id), commit=True)
-    #
-    # def update_longitude(self, longitude, user_id):
-    #     sql = 'UPDATE Users SET longitude=? WHERE user_id=?'
-    #     return self.execute(sql, parameters=(longitude, user_id), commit=True)
-
-    def delete_users(self):
-        self.execute('DELETE FROM Users WHERE True')
+    def count_table(self, table):
+        return self.execute(f'SELECT COUNT(*) FROM {table};', fetchone=True)
 
     def delete_table(self, table):
         self.execute(f'DELETE FROM {table} WHERE True')
