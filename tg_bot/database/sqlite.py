@@ -10,6 +10,7 @@ class SQLiteDatabase:
     def __init__(self, path_to_db='sqlite160124.db'):
         self.path_to_db = path_to_db
         self.new_path = '1716465804.db'
+        self.second_path = ''
         # self.new_path = str(int(datetime.datetime.utcnow().timestamp())) + '.db'
 
     @property
@@ -18,6 +19,10 @@ class SQLiteDatabase:
 
     @property
     def new_connection(self):
+        return sqlite3.connect(self.new_path)
+
+    @property
+    def second_connection(self):
         return sqlite3.connect(self.new_path)
 
     def execute_through_sql(self, sql, new=False):
@@ -480,30 +485,32 @@ class SQLiteDatabase:
         # копируем таблицу Workouts 2
         olddb = self.select_all_table(table='Workouts')
         for olddb_str in olddb:
-            dynamic = olddb_str[3].split()
+            dynamic = list(map(int, olddb_str[3].split()))
+            dynamic_sum = sum(dynamic)
+            work = []
             if olddb_str[8]:
-                date = float(olddb_str[8])
+                work = [[float(x) / dynamic_sum * y for x in olddb_str[8:]] for y in dynamic]
             else:
-                date = None
+                work = [[None for x in olddb_str[8:]] for y in dynamic]
             sql = (f'INSERT INTO workouts_long (workout_id, user_id, exercise_id, approach, dynamic, static, date,'
                    f' work, arms, legs, chest, abs, back) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?);')
             parameters = (olddb_str[0], olddb_str[1], olddb_str[2], 1, dynamic[0], 0, self.oldtime_to_newtime(olddb_str[7]),
-                          date, olddb_str[9], olddb_str[10], olddb_str[11], olddb_str[12], olddb_str[13])
+                          *work[0])
             self.execute(sql, commit=True, new=True, parameters=parameters)
             sql = (f'INSERT INTO workouts_long (workout_id, user_id, exercise_id, approach, dynamic, static, date,'
                    f' work, arms, legs, chest, abs, back) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?);')
-            parameters = (olddb_str[0], olddb_str[1], olddb_str[2], 2, dynamic[0], 0, self.oldtime_to_newtime(olddb_str[7]),
-                          date, olddb_str[9], olddb_str[10], olddb_str[11], olddb_str[12], olddb_str[13])
+            parameters = (olddb_str[0], olddb_str[1], olddb_str[2], 2, dynamic[1], 0, self.oldtime_to_newtime(olddb_str[7]),
+                          *work[1])
             self.execute(sql, commit=True, new=True, parameters=parameters)
             sql = (f'INSERT INTO workouts_long (workout_id, user_id, exercise_id, approach, dynamic, static, date,'
                    f' work, arms, legs, chest, abs, back) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?);')
-            parameters = (olddb_str[0], olddb_str[1], olddb_str[2], 3, dynamic[0], 0, self.oldtime_to_newtime(olddb_str[7]),
-                          date, olddb_str[9], olddb_str[10], olddb_str[11], olddb_str[12], olddb_str[13])
+            parameters = (olddb_str[0], olddb_str[1], olddb_str[2], 3, dynamic[2], 0, self.oldtime_to_newtime(olddb_str[7]),
+                          *work[2])
             self.execute(sql, commit=True, new=True, parameters=parameters)
             sql = (f'INSERT INTO workouts_long (workout_id, user_id, exercise_id, approach, dynamic, static, date,'
                    f' work, arms, legs, chest, abs, back) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?);')
-            parameters = (olddb_str[0], olddb_str[1], olddb_str[2], 4, dynamic[0], 0, self.oldtime_to_newtime(olddb_str[7]),
-                          date, olddb_str[9], olddb_str[10], olddb_str[11], olddb_str[12], olddb_str[13])
+            parameters = (olddb_str[0], olddb_str[1], olddb_str[2], 4, dynamic[3], 0, self.oldtime_to_newtime(olddb_str[7]),
+                          *work[3])
             self.execute(sql, commit=True, new=True, parameters=parameters)
             sql = (f'INSERT INTO workouts_long (workout_id, user_id, exercise_id, approach, dynamic, static, date,'
                    f' work, arms, legs, chest, abs, back) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?);')
@@ -514,8 +521,8 @@ class SQLiteDatabase:
                     tt = olddb_str[7]
             else:
                 tt = None
-            parameters = (olddb_str[0], olddb_str[1], olddb_str[2], 5, dynamic[0], 0, self.oldtime_to_newtime(tt),
-                          date, olddb_str[9], olddb_str[10], olddb_str[11], olddb_str[12], olddb_str[13])
+            parameters = (olddb_str[0], olddb_str[1], olddb_str[2], 5, dynamic[4], 0, self.oldtime_to_newtime(tt),
+                          *work[4])
             self.execute(sql, commit=True, new=True, parameters=parameters)
 
         # копируем таблицу Exercises_base
