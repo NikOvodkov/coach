@@ -458,7 +458,7 @@ class SQLiteDatabase:
         sql = '''
                 ATTACH DATABASE 'sqlite160124.db' AS olddb;
                 
-                CREATE TABLE multimedia AS SELECT multimedia_id, name, type, file_id, file_unique_id  FROM olddb.Multimedia;
+                CREATE TABLE IF NOT EXISTS multimedia AS SELECT multimedia_id, name, type, file_id, file_unique_id  FROM olddb.Multimedia;
                 
                 INSERT INTO users_base_long (user_id, name, email)
                 SELECT user_id, Name, email FROM olddb.Users;
