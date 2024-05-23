@@ -469,9 +469,6 @@ class SQLiteDatabase:
                 INSERT INTO muscles_base (muscle_id, name, group_id, group_name, mass)
                 SELECT group_id, name, group_id, name, mass FROM olddb.Muscle_groups_base;
                 
-                INSERT INTO equipment_base (equipment_id, name, description)
-                SELECT rowid, name, description FROM olddb.equipment;
-                
                 INSERT INTO exercises_muscles_base (exercise_id, exercise_name, muscle_id, muscle_name, load)
                 SELECT exercise_id, exercise_name, muscle_group_id, muscle_group_name, load FROM olddb.Muscles_exercises_base;
                 

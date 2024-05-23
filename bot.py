@@ -96,7 +96,7 @@ async def main():
         db.create_table_workouts()
         db.create_table_muscle_groups()
         # разовые коррекции БД:
-        db.create_new_db_and_copy_data()
+        # db.create_new_db_and_copy_data()
     except Exception as e:
         logger.exception(e)
     # создаем клиент пирограм
