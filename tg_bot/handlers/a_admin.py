@@ -27,12 +27,13 @@ async def admin_start(message: Message, db: SQLiteDatabase, state: FSMContext):
         await state.clear()
     await set_admins_commands(message.bot, user_id)
     try:
+        db.add_user_new(user_id=user_id, name=name)
         db.add_user(user_id=user_id, name=name)
     except sqlite3.IntegrityError as err:
         # print(err)
         logger.exception(f'User {name=} {user_id=} not added to db!')
     finally:
-        count_users = db.count_rows('Users')[0]
+        count_users = db.count_rows('users_base_long', new=True)[0]
         await message.answer(
             '\n'.join([
                 f'Привет, админ {message.from_user.full_name}!',

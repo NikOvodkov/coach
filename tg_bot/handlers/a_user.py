@@ -26,6 +26,7 @@ async def process_start_command(message: Message, db: SQLiteDatabase, state: FSM
     user_id = message.from_user.id
     try:
         db.add_user(user_id=user_id, name=name)
+        db.add_user_new(user_id=user_id, name=name)
         await message.forward(config.tg_bot.admin_ids[0])
     except sqlite3.IntegrityError as err:
         # print(err)
@@ -61,6 +62,7 @@ async def process_user_blocked_bot(event: ChatMemberUpdated, bot: Bot, config: C
                            text=f'Пользователь {event.from_user.id} {event.from_user.username} заблокировал бота')
     try:
         db.update_cell(table='Users', cell='status', cell_value='inactive', key='user_id', key_value=event.from_user.id)
+        db.update_cell(table='Users', cell='status', cell_value='inactive', key='user_id', key_value=event.from_user.id, new=True)
     except sqlite3.IntegrityError as err:
         # print(err)
         logger.exception(err)

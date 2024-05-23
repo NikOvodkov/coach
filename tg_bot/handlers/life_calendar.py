@@ -25,10 +25,11 @@ async def start_life_calendar(message: Message, state: FSMContext, db: SQLiteDat
     await message.answer(text=LEXICON_RU['life_calendar_0'])
     # находим пользователя в бд
     # user = db.select_user(user_id=message.from_user.id)
-    user = db.select_row(table='Users', user_id=message.from_user.id)
+    user = db.select_row(table='users_base_long', user_id=message.from_user.id, new=True)
     # если в бд указана дата рождения, то просим её подтвердить
-    if user[4]:
-        date = datetime.strptime(user[4], '%Y-%m-%d').strftime('%d-%m-%Y')
+    if user[7]:
+        # date = datetime.strptime(user[4], '%Y-%m-%d').strftime('%d-%m-%Y')
+        date = datetime.fromisoformat(user[7]).strftime('%d-%m-%Y')
         await message.answer(f'{LEXICON_RU["life_calendar_1"]}{date}{LEXICON_RU["life_calendar_2"]}', reply_markup=yesno)
         await state.set_state(FSMLifeCalendar.confirm_date)
     else:
@@ -54,20 +55,20 @@ async def no_enter_date(message: Message, state: FSMContext, db: SQLiteDatabase)
     # если пользователь согласен получить календарь, формируем его, отправляем и удаляем с сервера
     if message.text.lower().strip() == 'да':
         # user = db.select_user(user_id=message.from_user.id)
-        user = db.select_row(table='Users', user_id=message.from_user.id)
+        user = db.select_row(table='users_base_long', user_id=message.from_user.id, new=True)
         path = str(Path.cwd() / Path('tg_bot', 'utils', f'{datetime.now().strftime("%Y%m%d%H%M%S%f")}.gif'))
         logger.debug(f'{path=}')
-        lived_weeks = await generate_image_calendar(user[4], user[5], 'week', path)
+        lived_weeks = await generate_image_calendar(user[7], user[8], 'week', path)
         await message.answer_photo(photo=FSInputFile(path), reply_markup=ReplyKeyboardRemove(),
                                    caption=f'Сейчас идёт неделя {lived_weeks+1}')
         os.remove(path)
         # если пользователь подписан на еженедельную рассылку календаря, обнуляем состояние
-        if user[6]:
+        if user[9]:
             await state.clear()
         # если нет, предлагаем подписаться
         else:
             # если в бд есть координаты пользователя, просим его подтвердить часовой пояс
-            if user[3]:
+            if user[6]:
                 await state.set_state(FSMLifeCalendar.confirm_geo)
                 await message.answer(text=LEXICON_RU['no_enter_date_0'], reply_markup=yesno)
             # иначе просим отправить координаты
@@ -82,67 +83,52 @@ async def no_enter_date(message: Message, state: FSMContext, db: SQLiteDatabase)
 async def enter_date(message: Message, state: FSMContext, db: SQLiteDatabase):
     # обрабатываем полученную дату рождения и сохраняем её в бд
     # user = db.select_user(user_id=message.from_user.id)
-    user = db.select_row(table='Users', user_id=message.from_user.id)
+    user = db.select_row(table='users_base_long', user_id=message.from_user.id, new=True)
     # date = '-'.join(message.text.split())
     # дату можно считать одним из двух парсеров, но оба не поддерживают дату без разделителей типа '22071999'
     date = dateutil.parser.parse(message.text, fuzzy=True)
     # date = list(datefinder.find_dates(message.text))[0]
-    date = date.strftime('%Y-%m-%d')
+    # date = date.strftime('%Y-%m-%d')
+    date = datetime.isoformat(date)
     # print(date)
     logger.debug(date)
     # date = datetime.strptime(date, '%d-%m-%Y').strftime('%Y-%m-%d')
-    db.update_cell(table='Users', cell='birth_date', cell_value=date, key='user_id', key_value=message.from_user.id)
+    db.update_cell(table='users_base_long', cell='birth_date', cell_value=date, key='user_id', key_value=message.from_user.id, new=True)
     # вычисляем возраст пользователя в днях
     age_days = (datetime.now() - datetime.fromisoformat(date)).days
     # если больше 59 лет, записываем конечную дату как +10 лет к текущей
     if age_days > 21700:
-        life_date = (timedelta(weeks=520) + datetime.now()).strftime('%Y-%m-%d')
+        # life_date = (timedelta(weeks=520) + datetime.now()).strftime('%Y-%m-%d')
+        life_date = datetime.isoformat(timedelta(weeks=520) + datetime.now())
     else:
-        life_date = (timedelta(weeks=3652) + datetime.fromisoformat(date)).strftime('%Y-%m-%d')
+        # life_date = (timedelta(weeks=3652) + datetime.fromisoformat(date)).strftime('%Y-%m-%d')
+        life_date = datetime.isoformat(timedelta(weeks=3652) + datetime.fromisoformat(date))
     # db.update_life_date(life_date=life_date, user_id=message.from_user.id)
-    db.update_cell(table='Users', cell='life_date', cell_value=life_date, key='user_id', key_value=message.from_user.id)
+    db.update_cell(table='users_base_long', cell='life_date', cell_value=life_date, key='user_id', key_value=message.from_user.id, new=True)
     # await message.answer(text=LEXICON_RU['enter_date_0'])
     await message.answer(text=LEXICON_RU['enter_date_00'])
     await state.set_state(FSMLifeCalendar.oldster_enter_date)
-    # иначе как дата рождения + 70 лет
-    # else:
-    #     life_date = (timedelta(weeks=3652) + datetime.fromisoformat(date)).strftime('%Y-%m-%d')
-    #     # db.update_life_date(life_date=life_date, user_id=message.from_user.id)
-    #     db.update_cell(table='Users', cell='life_date', cell_value=life_date, key='user_id', key_value=message.from_user.id)
-    #     path = str(Path.cwd() / Path('tg_bot', 'utils', f'{datetime.now().strftime("%Y%m%d%H%M%S%f")}.gif'))
-    #     await generate_image_calendar(date, life_date, 'week', path)
-    #     await message.answer_photo(photo=FSInputFile(path), reply_markup=ReplyKeyboardRemove())
-    #     os.remove(path)
-    #     if user[6]:
-    #         await state.clear()
-    #     else:
-    #         if user[3]:
-    #             await state.set_state(FSMLifeCalendar.confirm_geo)
-    #             await message.answer(text=LEXICON_RU['enter_date_1'], reply_markup=yesno)
-    #         else:
-    #             await state.set_state(FSMLifeCalendar.everyweek_order)
-    #             await message.answer(text=LEXICON_RU['enter_date_2'], reply_markup=geono)
 
 
 @router.message(StateFilter(FSMLifeCalendar.oldster_enter_date))
 async def oldster_enter_date(message: Message, state: FSMContext, db: SQLiteDatabase):
     # user = db.select_user(user_id=message.from_user.id)
-    user = db.select_row(table='Users', user_id=message.from_user.id)
-    date = user[4]
+    user = db.select_row(table='users_base_long', user_id=message.from_user.id, new=True)
+    date = user[7]
     if message.text > '0':
-        life_date = (timedelta(weeks=int(message.text) * 52.1786) + datetime.now()).strftime('%Y-%m-%d')
+        life_date = datetime.isoformat(timedelta(weeks=int(message.text) * 52.1786) + datetime.now())
         # db.update_life_date(life_date=life_date, user_id=message.from_user.id)
-        db.update_cell(table='Users', cell='life_date', cell_value=life_date, key='user_id', key_value=message.from_user.id)
+        db.update_cell(table='users_base_long', cell='life_date', cell_value=life_date, key='user_id', key_value=message.from_user.id, new=True)
         path = str(Path.cwd() / Path('tg_bot', 'utils', f'{datetime.now().strftime("%Y%m%d%H%M%S%f")}.gif'))
         logger.debug(f'{path=}')
         lived_weeks = await generate_image_calendar(date, life_date, 'week', path)
         await message.answer_photo(photo=FSInputFile(path), reply_markup=ReplyKeyboardRemove(),
                                    caption=f'Сейчас идёт неделя {lived_weeks+1}')
         os.remove(path)
-        if user[6]:
+        if user[9]:
             await state.clear()
         else:
-            if user[3]:
+            if user[6]:
                 await state.set_state(FSMLifeCalendar.confirm_geo)
                 await message.answer(text=LEXICON_RU['oldster_enter_date_0'], reply_markup=yesno)
             else:
@@ -158,12 +144,12 @@ async def oldster_enter_date(message: Message, state: FSMContext, db: SQLiteData
 async def confirm_geo(message: Message, state: FSMContext, db: SQLiteDatabase):
     if message.text.lower().strip() == 'да':
         # user = db.select_user(user_id=message.from_user.id)
-        user = db.select_row(table='Users', user_id=message.from_user.id)
+        user = db.select_row(table='users_base_long', user_id=message.from_user.id, new=True)
         await state.set_state(FSMLifeCalendar.confirm_geo_process)
-        await message.answer(text=f'{LEXICON_RU["confirm_geo_0"]}{user[3]}{LEXICON_RU["confirm_geo_1"]}', reply_markup=yesno)
+        await message.answer(text=f'{LEXICON_RU["confirm_geo_0"]}{user[6]}{LEXICON_RU["confirm_geo_1"]}', reply_markup=yesno)
     else:
         # db.update_life_calendar(life_calendar=None, user_id=message.from_user.id)
-        db.update_cell(table='Users', cell='life_calendar', cell_value=None, key='user_id', key_value=message.from_user.id)
+        db.update_cell(table='users_base_long', cell='life_calendar_sub', cell_value=None, key='user_id', key_value=message.from_user.id, new=True)
         await message.answer(text=LEXICON_RU["confirm_geo_2"], reply_markup=ReplyKeyboardRemove())
         await state.clear()
 
@@ -172,9 +158,9 @@ async def confirm_geo(message: Message, state: FSMContext, db: SQLiteDatabase):
 async def confirm_geo_process(message: Message, state: FSMContext, db: SQLiteDatabase):
     if message.text.lower().strip() == 'да':
         # db.update_life_calendar(life_calendar=datetime.now().strftime('%Y-%m-%d'), user_id=message.from_user.id)
-        db.update_cell(table='Users', cell='life_calendar',
-                       cell_value=datetime.now().strftime('%Y-%m-%d'),
-                       key='user_id', key_value=message.from_user.id)
+        db.update_cell(table='users_base_long', cell='life_calendar_sub',
+                       cell_value=datetime.now().isoformat(),
+                       key='user_id', key_value=message.from_user.id, new=True)
         await message.answer(text=LEXICON_RU['confirm_geo_process_0'], reply_markup=ReplyKeyboardRemove())
         await state.clear()
     else:
@@ -186,11 +172,11 @@ async def confirm_geo_process(message: Message, state: FSMContext, db: SQLiteDat
 async def change_timezone(message: Message, state: FSMContext, db: SQLiteDatabase):
     time_zone = int(message.text)
     # db.update_time_zone(time_zone=str(time_zone), user_id=message.from_user.id)
-    db.update_cell(table='Users', cell='time_zone', cell_value=str(time_zone), key='user_id', key_value=message.from_user.id)
+    db.update_cell(table='users_base_long', cell='time_zone', cell_value=time_zone, key='user_id', key_value=message.from_user.id, new=True)
     # db.update_life_calendar(life_calendar=datetime.now().strftime('%Y-%m-%d'), user_id=message.from_user.id)
-    db.update_cell(table='Users', cell='life_calendar',
-                   cell_value=datetime.now().strftime('%Y-%m-%d'),
-                   key='user_id', key_value=message.from_user.id)
+    db.update_cell(table='users_base_long', cell='life_calendar_sub',
+                   cell_value=datetime.now().isoformat(),
+                   key='user_id', key_value=message.from_user.id, new=True)
     await message.answer(text=LEXICON_RU['change_timezone'], reply_markup=ReplyKeyboardRemove())
     await state.clear()
 
@@ -199,13 +185,13 @@ async def change_timezone(message: Message, state: FSMContext, db: SQLiteDatabas
 async def everyweek_order_geo(message: Message, state: FSMContext, db: SQLiteDatabase):
     time_zone = round(message.location.longitude / 15)
     # db.update_time_zone(time_zone=str(time_zone), user_id=message.from_user.id)
-    db.update_cell(table='Users', cell='time_zone', cell_value=str(time_zone), key='user_id', key_value=message.from_user.id)
+    db.update_cell(table='users_base_long', cell='time_zone', cell_value=time_zone, key='user_id', key_value=message.from_user.id, new=True)
     # db.update_latitude(latitude=str(message.location.latitude), user_id=message.from_user.id)
-    db.update_cell(table='Users', cell='latitude', cell_value=str(message.location.latitude),
-                   key='user_id', key_value=message.from_user.id)
+    db.update_cell(table='users_base_long', cell='latitude', cell_value=message.location.latitude,
+                   key='user_id', key_value=message.from_user.id, new=True)
     # db.update_longitude(longitude=str(message.location.longitude), user_id=message.from_user.id)
-    db.update_cell(table='Users', cell='longitude', cell_value=str(message.location.longitude),
-                   key='user_id', key_value=message.from_user.id)
+    db.update_cell(table='users_base_long', cell='longitude', cell_value=message.location.longitude,
+                   key='user_id', key_value=message.from_user.id, new=True)
     await state.set_state(FSMLifeCalendar.confirm_geo_process)
     await message.answer(text=f'{LEXICON_RU["everyweek_order_0"]}{time_zone}{LEXICON_RU["everyweek_order_1"]}',
                          reply_markup=yesno)
@@ -218,12 +204,12 @@ async def everyweek_order_geo(message: Message, state: FSMContext, db: SQLiteDat
 async def everyweek_order_repeat_no(message: Message, state: FSMContext, db: SQLiteDatabase):
     if message.text.lower().strip() == 'да':
         # db.update_life_calendar(life_calendar=datetime.now().strftime('%Y-%m-%d'), user_id=message.from_user.id)
-        db.update_cell(table='Users', cell='life_calendar',
-                       cell_value=datetime.now().strftime('%Y-%m-%d'),
-                       key='user_id', key_value=message.from_user.id)
+        db.update_cell(table='users_base_long', cell='life_calendar_sub',
+                       cell_value=datetime.now().isoformat(),
+                       key='user_id', key_value=message.from_user.id, new=True)
         await message.answer(text=LEXICON_RU['everyweek_order_2'], reply_markup=ReplyKeyboardRemove())
     else:
         # db.update_life_calendar(life_calendar=None, user_id=message.from_user.id)
-        db.update_cell(table='Users', cell='life_calendar', cell_value=None, key='user_id', key_value=message.from_user.id)
+        db.update_cell(table='users_base_long', cell='life_calendar_sub', cell_value=None, key='user_id', key_value=message.from_user.id, new=True)
         await message.answer(text=LEXICON_RU['everyweek_order_3'], reply_markup=ReplyKeyboardRemove())
     await state.clear()

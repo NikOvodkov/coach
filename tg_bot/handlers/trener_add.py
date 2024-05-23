@@ -37,33 +37,33 @@ async def add_exercise_process(message: Message, state: FSMContext, db: SQLiteDa
     exercise_name = message_list[1]
     if exercise_id.isdigit():
         # обновляем таблицу Exercises_base
-        table_str = db.select_table(table='Exercises_base', exercise_id=exercise_id)
+        table_str = db.select_table(table='exercises_base', exercise_id=exercise_id, new=True)
         logger.debug(f'{table_str[2]=}')
         exercise_name = table_str[2]
         exercise_id = table_str[0]
         # обновляем таблицу Muscles_exercises_base
-        table_str = db.select_table(table='Muscles_exercises_base', exercise_id=exercise_id, muscle_group_id=0)
+        table_str = db.select_table(table='exercises_muscles_base', exercise_id=exercise_id, muscle_group_id=0, new=True)
         if not table_str:
             db.add_muscles_exercises(exercise_id=exercise_id, exercise_name=exercise_name, muscle_group_id=0,
-                                     muscle_group_name='Руки', load=float(message_list[2]))
-        table_str = db.select_table(table='Muscles_exercises_base', exercise_id=exercise_id, muscle_group_id=1)
+                                     muscle_group_name='Руки', load=float(message_list[2]), new=True)
+        table_str = db.select_table(table='exercises_muscles_base', exercise_id=exercise_id, muscle_group_id=1, new=True)
         if not table_str:
             db.add_muscles_exercises(exercise_id=exercise_id, exercise_name=exercise_name, muscle_group_id=1,
-                                     muscle_group_name='Ноги', load=float(message_list[3]))
-        table_str = db.select_table(table='Muscles_exercises_base', exercise_id=exercise_id, muscle_group_id=2)
+                                     muscle_group_name='Ноги', load=float(message_list[3]), new=True)
+        table_str = db.select_table(table='exercises_muscles_base', exercise_id=exercise_id, muscle_group_id=2, new=True)
         if not table_str:
             db.add_muscles_exercises(exercise_id=exercise_id, exercise_name=exercise_name, muscle_group_id=2,
-                                     muscle_group_name='Грудь', load=float(message_list[4]))
-        table_str = db.select_table(table='Muscles_exercises_base', exercise_id=exercise_id, muscle_group_id=3)
+                                     muscle_group_name='Грудь', load=float(message_list[4]), new=True)
+        table_str = db.select_table(table='exercises_muscles_base', exercise_id=exercise_id, muscle_group_id=3, new=True)
         if not table_str:
             db.add_muscles_exercises(exercise_id=exercise_id, exercise_name=exercise_name, muscle_group_id=3,
-                                     muscle_group_name='Живот', load=float(message_list[5]))
-        table_str = db.select_table(table='Muscles_exercises_base', exercise_id=exercise_id, muscle_group_id=4)
+                                     muscle_group_name='Живот', load=float(message_list[5]), new=True)
+        table_str = db.select_table(table='exercises_muscles_base', exercise_id=exercise_id, muscle_group_id=4, new=True)
         if not table_str:
             db.add_muscles_exercises(exercise_id=exercise_id, exercise_name=exercise_name, muscle_group_id=4,
-                                     muscle_group_name='Спина', load=float(message_list[6]))
+                                     muscle_group_name='Спина', load=float(message_list[6]), new=True)
     else:
-        db.add_exercise_base(user_id=user_id, name=exercise_name)
+        db.add_exercise_base_new(user_id=user_id, name=exercise_name, new=True)
 
     msg = await message.answer(
         text=f'Упражнение добавлено'
