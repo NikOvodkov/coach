@@ -297,10 +297,10 @@ class SQLiteDatabase:
         self.execute(sql, parameters=parameters, commit=True, new=new)
 
     # таблица содержит приходы/расходы калорий
-    def create_energy_balance(self, new=False):
+    def create_energy_balance(self, new=True):
         sql = '''
            CREATE TABLE IF NOT EXISTS energy_balance (
-           user_id       INTEGER PRIMARY KEY NOT NULL,
+           user_id INTEGER REFERENCES users_base_long (user_id),
            kcal          INTEGER NOT NULL,
            proteins      INTEGER,
            fats          INTEGER,
@@ -318,10 +318,10 @@ class SQLiteDatabase:
         self.execute(sql, parameters=parameters, commit=True, new=new)
 
     # таблица содержит историю взвешиваний
-    def create_weight_table(self, new=False):
+    def create_weight_table(self, new=True):
         sql = '''
            CREATE TABLE IF NOT EXISTS users_weights_long (
-           user_id       INTEGER PRIMARY KEY NOT NULL,
+           user_id INTEGER REFERENCES users_base_long (user_id),
            weight        INTEGER NOT NULL,
            fat           INTEGER,
            date          VARCHAR(255)
@@ -329,8 +329,8 @@ class SQLiteDatabase:
            '''
         self.execute(sql, commit=True, new=new)
 
-    def add_weight(self, user_id: int, weight: int, fat: int, date: str = datetime.datetime.utcnow().isoformat(), new=True):
-        sql = 'INSERT INTO energy_balance (user_id, weight, fat, date) VALUES(?,?,?,?)'
+    def add_weight(self, user_id: int, weight: int, fat: int = None, date: str = datetime.datetime.utcnow().isoformat(), new=True):
+        sql = 'INSERT INTO users_weights_long (user_id, weight, fat, date) VALUES(?,?,?,?)'
         parameters = (user_id, weight, fat, date)
         self.execute(sql, parameters=parameters, commit=True, new=new)
 

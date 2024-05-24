@@ -95,6 +95,8 @@ async def main():
         db.create_table_muscles_user()
         db.create_table_workouts()
         db.create_table_muscle_groups()
+        db.create_energy_balance()
+        db.create_weight_table()
         # разовые коррекции БД:
         # db.create_new_db_and_copy_data()
     except Exception as e:
@@ -124,11 +126,11 @@ async def main():
     logger.info('Подключаем роутеры')
     dp.include_routers(a_admin.router,
                        update_db_sqlite.router,
+                       energy_balance.router,
                        a_user.router,
                        atomy.router,
                        gsheet.router,
                        life_calendar.router,
-                       energy_balance.router,
                        trener.router,
                        trener_add.router,
                        a_other.router)
