@@ -227,8 +227,6 @@ class SQLiteDatabase:
                       description_video, description_sound_link, description_sound)
         self.execute(sql, parameters=parameters, commit=True, new=new)
 
-
-
         # таблица содержит неповторяющийся список уникальных мышц (около 600 штук)
 
     def create_table_muscles_user(self, new=False):
@@ -298,6 +296,44 @@ class SQLiteDatabase:
         parameters = (workout_id, user_id, exercise_id, approach, dynamic, static, date, work, arms, legs, chest, abs, back)
         self.execute(sql, parameters=parameters, commit=True, new=new)
 
+    # таблица содержит приходы/расходы калорий
+    def create_energy_balance(self, new=False):
+        sql = '''
+           CREATE TABLE IF NOT EXISTS energy_balance (
+           user_id       INTEGER PRIMARY KEY NOT NULL,
+           kcal          INTEGER NOT NULL,
+           proteins      INTEGER,
+           fats          INTEGER,
+           carbohydrates INTEGER,
+           comment       VARCHAR, /* сюда записывается съеденный продукт/блюдо или тип тренировки/активности */
+           date          VARCHAR(255)
+           );
+           '''
+        self.execute(sql, commit=True, new=new)
+
+    def add_energy(self, user_id: int, kcal: int, proteins: int = None, fats: int = None, carbohydrates: int = None,
+                   comment: str = None, date: str = datetime.datetime.utcnow().isoformat(), new=True):
+        sql = 'INSERT INTO energy_balance (user_id, kcal, proteins, fats, carbohydrates, comment, date) VALUES(?,?,?,?,?,?,?)'
+        parameters = (user_id, kcal, proteins, fats, carbohydrates, comment, date)
+        self.execute(sql, parameters=parameters, commit=True, new=new)
+
+    # таблица содержит историю взвешиваний
+    def create_weight_table(self, new=False):
+        sql = '''
+           CREATE TABLE IF NOT EXISTS users_weights_long (
+           user_id       INTEGER PRIMARY KEY NOT NULL,
+           weight        INTEGER NOT NULL,
+           fat           INTEGER,
+           date          VARCHAR(255)
+           );
+           '''
+        self.execute(sql, commit=True, new=new)
+
+    def add_weight(self, user_id: int, weight: int, fat: int, date: str = datetime.datetime.utcnow().isoformat(), new=True):
+        sql = 'INSERT INTO energy_balance (user_id, weight, fat, date) VALUES(?,?,?,?)'
+        parameters = (user_id, weight, fat, date)
+        self.execute(sql, parameters=parameters, commit=True, new=new)
+
     # таблица содержит список групп мышц
     def create_table_muscle_groups(self, new=False):
         sql = '''
@@ -343,7 +379,8 @@ class SQLiteDatabase:
         return self.execute(sql, fetchone=True, new=new)
 
     def select_last_workout_new(self, user_id: int, exercise_id: int, new=True):
-        sql = f'SELECT * FROM workouts_long WHERE user_id = {user_id} AND exercise_id = {exercise_id} ORDER BY workout_id DESC'
+        sql = (f'SELECT * FROM workouts_long WHERE user_id = {user_id} AND exercise_id = {exercise_id} '
+               f'ORDER BY workout_id DESC, approach ASC')
         return self.execute(sql, fetchall=True, new=new)
 
     def select_all_users(self, new=False):
@@ -479,8 +516,6 @@ class SQLiteDatabase:
                 
                         '''
         self.execute(sql, commit=True, new=True, script=True)
-
-
 
         # копируем таблицу Workouts 2
         olddb = self.select_all_table(table='Workouts')

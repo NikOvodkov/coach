@@ -177,8 +177,8 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase)
         reply_markup=ReplyKeyboardRemove())
 
     if last_workouts:
-        new_workout = (str(last_workouts[-5][4]) + ' ' + str(last_workouts[-4][4]) + ' ' + str(last_workouts[-3][4]) +
-                       ' ' + str(last_workouts[-2][4]) + ' ' + str(last_workouts[-1][4]))
+        new_workout = (str(last_workouts[0][4]) + ' ' + str(last_workouts[1][4]) + ' ' + str(last_workouts[2][4]) +
+                       ' ' + str(last_workouts[3][4]) + ' ' + str(last_workouts[4][4]))
         logger.debug(f'{new_workout=}')
         new_workout = generate_new_split(new_workout)
     else:

@@ -1,5 +1,5 @@
 # Инициализируем роутер уровня модуля
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
@@ -14,3 +14,20 @@ async def start_life_calendar(message: Message, state: FSMContext, db: SQLiteDat
     # при входе в сервис Календарь жизни отправляем приветствие
     await message.answer(text='Здесь ведётся учет потребеления и расхода килокалорий энергии.')
 
+
+@router.message(F.text.startswith('+'))
+async def add_energy(message: Message, state: FSMContext, db: SQLiteDatabase):
+    # при входе в сервис Календарь жизни отправляем приветствие
+    await message.answer(text='Здесь ведётся учет потребеления и расхода килокалорий энергии.')
+
+
+@router.message(F.text.startswith('-'))
+async def start_life_calendar(message: Message, state: FSMContext, db: SQLiteDatabase):
+    # при входе в сервис Календарь жизни отправляем приветствие
+    await message.answer(text='Здесь ведётся учет потребеления и расхода килокалорий энергии.')
+
+
+@router.message(F.text.startswith('='))
+async def start_life_calendar(message: Message, state: FSMContext, db: SQLiteDatabase):
+    # при входе в сервис Календарь жизни отправляем приветствие
+    await message.answer(text='Здесь ведётся учет потребеления и расхода килокалорий энергии.')
