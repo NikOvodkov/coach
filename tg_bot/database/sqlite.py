@@ -278,6 +278,46 @@ class SQLiteDatabase:
         '''
         self.execute(sql, commit=True, new=new)
 
+    def create_table_workouts_short(self, new=True):
+        sql = '''
+                CREATE TABLE IF NOT EXISTS workouts_short (
+                workout_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER REFERENCES users_base_long (user_id),
+                work REAL,
+                arms REAL,
+                legs REAL,
+                chest REAL,
+                abs REAL,
+                back REAL,
+                date VARCHAR(255)
+                );
+                '''
+        self.execute(sql, commit=True, new=new)
+        # пробегаемся по базе workout long, если в таблице нет этого воркаута, добавляем
+        all_workouts = self.select_all_table(table='workouts_long', new=True)
+        short_workouts = self.select_all_table(table='workouts_short', new=True)
+        if short_workouts is None or len(short_workouts) == 0:
+            workouts_voc = {}
+            for workout in all_workouts:
+                if workout[0] in workouts_voc and workout[7] is not None:
+                    workouts_voc[workout[0]][1] += workout[7]
+                    workouts_voc[workout[0]][2] += workout[8]
+                    workouts_voc[workout[0]][3] += workout[9]
+                    workouts_voc[workout[0]][4] += workout[10]
+                    workouts_voc[workout[0]][5] += workout[11]
+                    workouts_voc[workout[0]][6] += workout[12]
+                else:
+                    workouts_voc[workout[0]] = [workout[1], workout[7], workout[8], workout[9], workout[10],
+                                                workout[11], workout[12], workout[6]]
+            logger.debug(f'{workouts_voc=}')
+            for workout in workouts_voc:
+                sql = (f'INSERT INTO workouts_short (workout_id, user_id, work, arms, legs, chest, abs, back, date) '
+                       f'VALUES(?,?,?,?,?,?,?,?,?)')
+                parameters = (workout, workouts_voc[workout][0], workouts_voc[workout][1],
+                              workouts_voc[workout][2], workouts_voc[workout][3], workouts_voc[workout][4],
+                              workouts_voc[workout][5], workouts_voc[workout][6], workouts_voc[workout][7])
+                self.execute(sql, parameters=parameters, commit=True, new=new)
+
     def add_workout(self, user_id: int, exercise_id: int, exercises_list: str, duration_min: int = None,
                     consumption_cal: int = None, heart_load: int = None, date: str = None, work: int = None,
                     arms: float = None, legs: float = None, chest: float = None, abs: float = None, back: float = None, new=False):
@@ -345,6 +385,7 @@ class SQLiteDatabase:
            '''
         self.execute(sql, commit=True, new=new)
 
+
     def add_muscle_group(self, group_id: int, name: str, mass: float, new=False):
         sql = 'INSERT OR IGNORE INTO Muscle_groups_base (group_id, name, mass) VALUES(?,?,?)'
         parameters = (group_id, name, mass)
@@ -378,7 +419,7 @@ class SQLiteDatabase:
         sql = f'SELECT * FROM Workouts WHERE user_id = {user_id} AND exercise_id = {exercise_id} ORDER BY workout_id DESC'
         return self.execute(sql, fetchone=True, new=new)
 
-    def select_last_workout_new(self, user_id: int, exercise_id: int, new=True):
+    def select_last_workout_new(self, user_id: int, exercise_id: int = None, new=True):
         sql = (f'SELECT * FROM workouts_long WHERE user_id = {user_id} AND exercise_id = {exercise_id} '
                f'ORDER BY workout_id DESC, approach ASC')
         return self.execute(sql, fetchall=True, new=new)
@@ -420,6 +461,13 @@ class SQLiteDatabase:
             return dt.isoformat()
         else:
             return
+
+    def add_sex_height(self):
+        sql = '''
+        ALTER TABLE users_base_long ADD height INTEGER;
+        ALTER TABLE users_base_long ADD sex VARCHAR(1);
+        '''
+        self.execute(sql, commit=True, new=True, script=True)
 
     def create_new_db_and_copy_data(self) -> str:
         sql = '''
