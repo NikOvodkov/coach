@@ -40,6 +40,7 @@ async def daemons(bot, db, dp):
     await send_life_calendar(db, bot, dp)
 
 
+
 async def writelog(dp: Dispatcher):
     while True:
         await asyncio.sleep(120)
@@ -99,7 +100,7 @@ async def main():
         db.create_weight_table()
         db.create_table_workouts_short()
         # разовые коррекции БД:
-        db.add_sex_height()
+        # db.add_sex_height()
     except Exception as e:
         logger.exception(e)
     # создаем клиент пирограм

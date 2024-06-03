@@ -13,6 +13,7 @@ from aiogram.utils.media_group import MediaGroupBuilder
 
 from logging_settings import logger
 from tg_bot.database.sqlite import SQLiteDatabase
+from tg_bot.filters.db import MyUserDbFilter
 from tg_bot.keyboards.trener import yesno, ready
 from tg_bot.lexicon.life_calendar import LEXICON_RU
 from tg_bot.states.trener import FSMTrener
@@ -25,11 +26,12 @@ router = Router()
 
 
 async def clear_delete_list(delete_list, bot, user_id):
-    for message_id in delete_list:
+    for message_id in set(delete_list):
         await bot.delete_message(chat_id=user_id, message_id=message_id)
     return []
 
-async def auto_choose_exercise(user, db, black_list):
+
+async def auto_choose_exercise(user, db, black_list) -> int:
     """
     1. Находим в истории тренировку с максимальной работой за месяц, добавляем 10%, получаем норму работы на новую тренировку.
     2. Суммируем недельную работу по каждой мышце, выясняем у какой меньше всего, будем прорабатывать её.
@@ -206,141 +208,208 @@ async def show_statistics(message: Message, state: FSMContext, db: SQLiteDatabas
     await state.clear()
 
 
-@router.message(Command(commands='fitness'))
-async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase):
-    delete_list = []
-    user = db.select_table('users_base_long', user_id=message.from_user.id, new=True)
-    if user[11] is None:
-        msg = await message.answer(text='Введите свой вес (целое число): ',
-                                   reply_markup=ReplyKeyboardRemove())
-        delete_list.append(msg.message_id)
-        await state.set_state(FSMTrener.enter_weight)
-    else:
-        msg = await message.answer(
-            text=f'Личный тренер приветствует вас!\n Выполните разминку из видео ниже, вы можете делать упражнения в удобном для вас темпе: '
-                 f'быстрее или медленнее чем показано в видео. Обратите внимание, красным цветом выделены '
-                 f'мышцы, на которые делается акцент в упражнении. Вы можете выполнить другую разминку, '
-                 f'вместо представленной, но важно, чтобы она разогревала все мышцы и связки от шеи до ступней.')
-        delete_list.append(msg.message_id)
-        msg = await message.answer_video(
-            video=db.select_row(table='Multimedia', name='warmup', new=True)[3],
-            caption='Разминка 8 минут',
-            reply_markup=ready)
-        delete_list.append(msg.message_id)
-        await state.set_state(FSMTrener.show_exercises)
-
-    delete_list.append(message.message_id)
-    await state.update_data(delete_list=delete_list)
-    await state.update_data(black_list=[])
-
-
-@router.message(F.text, StateFilter(FSMTrener.enter_weight))
-async def enter_weight(message: Message, state: FSMContext, db: SQLiteDatabase):
-    delete_list = []
-    if message.text.isdigit():
-        db.update_cell(table='users_base_long', cell='weight', cell_value=int(message.text),
-                       key='user_id', key_value=message.from_user.id, new=True)
-    # msg = await message.answer(text=f'Личный тренер приветствует вас! Сперва выполните разминку: \n'
-    #                                 f'{hide_link("https://www.youtube.com/watch?v=mU2K1Z17yLg")}', reply_markup=ready)
+@router.message(F.text.lower().strip() == 'запустить тренировку')
+@router.message(Command(commands='fitness'), MyUserDbFilter(column='birth_date'), MyUserDbFilter(column='sex'))
+async def warmup_07new(message: Message, state: FSMContext, db: SQLiteDatabase):
+    data = await state.get_data()
+    if 'delete_list' not in data:
+        data['delete_list'] = []
     msg = await message.answer(
-        text=f'Личный тренер приветствует вас!\n Выполните разминку из видео ниже, вы можете делать упражнения в удобном для вас темпе: '
+        text=f'Выполните разминку из видео ниже, вы можете делать упражнения в удобном для вас темпе: '
              f'быстрее или медленнее чем показано в видео. Обратите внимание, красным цветом выделены '
              f'мышцы, на которые делается акцент в упражнении. Вы можете выполнить другую разминку, '
              f'вместо представленной, но важно, чтобы она разогревала все мышцы и связки от шеи до ступней.')
-    delete_list.append(msg.message_id)
+    data['delete_list'].append(msg.message_id)
     msg = await message.answer_video(
         video=db.select_row(table='Multimedia', name='warmup', new=True)[3],
         caption='Разминка 8 минут',
         reply_markup=ready)
-    delete_list.append(msg.message_id)
-    delete_list.append(message.message_id)
-    await state.update_data(delete_list=delete_list)
+    data['delete_list'].append(msg.message_id)
+    data['delete_list'].append(message.message_id)
+    await state.update_data(delete_list=data['delete_list'])
+    await state.update_data(black_list=[])
     await state.set_state(FSMTrener.show_exercises)
 
 
-@router.message(F.text, StateFilter(FSMTrener.show_exercises))
-@router.message(F.text.lower().strip() == 'да', StateFilter(FSMTrener.workout_end))
-async def start_trener(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot):
+@router.message(Command(commands='fitness'), MyUserDbFilter(column='birth_date'))
+@router.message(F.text.lower().strip() == 'нет', StateFilter(FSMTrener.enter_data_06new))
+async def check_data_04new(message: Message, state: FSMContext, db: SQLiteDatabase):
     data = await state.get_data()
-    await asyncio.sleep(1)
-    for message_id in data['delete_list']:
-        await bot.delete_message(chat_id=message.from_user.id, message_id=message_id)
-    data['delete_list'] = []
-    msg = await message.answer(text='Выберите упражнение из списка ниже и пришлите его номер ответным сообщением, '
-                                    'либо нажмите кнопку "Выбрать автоматически"',
-                               reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Выбрать автоматически")]],
-                                                                one_time_keyboard=True, resize_keyboard=True))
+    if 'delete_list' not in data:
+        data['delete_list'] = []
+    msg = await message.answer(text='Для правильного расчёта нагрузок, необходимо ввести ваш пол, рост и вес. '
+                                    'Пол может быть только М или Ж, выберите, какой вам больше подходит. '
+                                    'Рост и вес - ЦЕЛЫЕ положительные числа.\n'
+                                    'Введите через пробел ваш пол, рост и вес, например Ж 170 70: ',
+                               reply_markup=ReplyKeyboardRemove())
     data['delete_list'].append(msg.message_id)
     data['delete_list'].append(message.message_id)
+    await state.update_data(delete_list=data['delete_list'])
+    await state.set_state(FSMTrener.enter_data_05new)
+
+
+@router.message(Command(commands='fitness'))
+@router.message(F.text.lower().strip() == 'нет', StateFilter(FSMTrener.enter_bdate_03new))
+async def check_bdate_01new(message: Message, state: FSMContext, db: SQLiteDatabase):
+    data = await state.get_data()
+    if 'delete_list' not in data:
+        data['delete_list'] = []
+    msg = await message.answer(text='Для учёта возраста при подборе тренировочной программы '
+                                    'введите через пробел дату вашего рождения, в формате 22 06 1990: ',
+                               reply_markup=ReplyKeyboardRemove())
+    data['delete_list'].append(msg.message_id)
+    data['delete_list'].append(message.message_id)
+    await state.update_data(delete_list=data['delete_list'])
+    await state.set_state(FSMTrener.enter_bdate_02new)
+
+
+#  подтверждаем правильность даты
+@router.message(F.text, StateFilter(FSMTrener.enter_bdate_02new))
+async def enter_bdate_02new(message: Message, bot: Bot, state: FSMContext, db: SQLiteDatabase):
+    data = await state.get_data()
+    if 'delete_list' not in data:
+        data['delete_list'] = []
+    date = dateutil.parser.parse(message.text, fuzzy=True)
+    msg = await message.answer(text=f'Подтвердите, ваша дата рождения {date.strftime("%d-%m-%Y")} ? '
+                                    f'Исправить дату позже не получится.',
+                               reply_markup=yesno)
+    data['delete_list'].append(msg.message_id)
+    data['delete_list'].append(message.message_id)
+    date = datetime.isoformat(date)
+    await state.update_data(date=date)
+    await state.update_data(delete_list=data['delete_list'])
+    await state.set_state(FSMTrener.enter_bdate_03new)
+
+
+@router.message(F.text.lower().strip() == 'да', StateFilter(FSMTrener.enter_bdate_03new))
+async def enter_bdate_03new(message: Message, bot: Bot, state: FSMContext, db: SQLiteDatabase):
+    data = await state.get_data()
+    if 'delete_list' not in data:
+        data['delete_list'] = []
+    db.update_cell(table='users_base_long', cell='birth_date', cell_value=data['date'],
+                   key='user_id', key_value=message.from_user.id, new=True)
+    msg = await message.answer(text='Данные сохранены')
+    data['delete_list'].append(message.message_id)
+    data['delete_list'].append(msg.message_id)
     await asyncio.sleep(1)
-    exercises_table = db.select_all_table('exercises_base', new=True)
-    if exercises_table:
-        captions = []
-        for exercise in exercises_table:
-            captions.append(str(exercise[0]) + ' ' + exercise[2])
-        msg = await message.answer(text='\n'.join(captions),
-                                   reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Выбрать автоматически")]],
-                                                                    one_time_keyboard=True, resize_keyboard=True))
-        await state.set_state(FSMTrener.workout)
-    else:
-        msg = await message.answer(text='Сбой базы данных. Попробуйте еще раз или обратитесь к администратору',
-                                   reply_markup=ReplyKeyboardRemove())
-        await state.set_state(FSMTrener.show_exercises)
+    data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
+    await state.update_data(delete_list=[])
+    msg = await message.answer(text='Для правильного расчёта нагрузок, необходимо ввести ваш пол, рост и вес. '
+                                    'Пол может быть только М или Ж, выберите, какой вам больше подходит. '
+                                    'Рост и вес - ЦЕЛЫЕ положительные числа.\n'
+                                    'Введите через пробел ваш пол, рост и вес, например Ж 170 70: ',
+                               reply_markup=ReplyKeyboardRemove())
     data['delete_list'].append(msg.message_id)
     await state.update_data(delete_list=data['delete_list'])
+    await state.set_state(FSMTrener.enter_data_05new)
 
 
-@router.callback_query(F.data == 'yes', StateFilter(FSMTrener.workout_end))
-@router.callback_query(F.data == 'ready', StateFilter(FSMTrener.show_exercises))
-async def start_trener_callback(callback: CallbackQuery, state: FSMContext, db: SQLiteDatabase):
+# проверяем пол, рост, вес
+@router.message(F.text.lower().strip() == 'нет', StateFilter(FSMTrener.enter_data_06new))
+async def check_data_04new(message: Message, state: FSMContext, db: SQLiteDatabase):
+    logger.debug(f'enter check_data_04new')
     data = await state.get_data()
-    delete_list = data['delete_list']
-    msg = await callback.answer(text='Выберите упражнение из списка ниже и пришлите его номер ответным сообщением.',
-                                reply_markup=ReplyKeyboardRemove())
-    # delete_list.append(msg. .message_id)
-    delete_list.append(callback.message_id)
+    if 'delete_list' not in data:
+        data['delete_list'] = []
+    logger.debug(f'{data=}')
+    logger.debug(f'dalee message')
+    msg = await message.answer(text='Для правильного расчёта нагрузок, необходимо ввести ваш пол, рост и вес. '
+                                    'Пол может быть только М или Ж, выберите, какой вам больше подходит. '
+                                    'Рост и вес - ЦЕЛЫЕ положительные числа.\n'
+                                    'Введите через пробел ваш пол, рост и вес, например Ж 170 70: ',
+                               reply_markup=ReplyKeyboardRemove())
+    data['delete_list'].append(msg.message_id)
+    data['delete_list'].append(message.message_id)
+    await state.update_data(delete_list=data['delete_list'])
+    await state.set_state(FSMTrener.enter_data_05new)
+
+
+@router.message(F.text, StateFilter(FSMTrener.enter_data_05new))
+async def enter_data_05new(message: Message, bot: Bot, state: FSMContext, db: SQLiteDatabase):
+    data = await state.get_data()
+    if 'delete_list' not in data:
+        data['delete_list'] = []
+    user_data = message.text.lower().strip().split()
+    msg = await message.answer(text=f'Подтвердите, ваша пол {user_data[0]}, рост {user_data[1]}, вес {user_data[2]} ? '
+                                    f'Пол и рост исправить позже не получится.',
+                               reply_markup=yesno)
+    data['delete_list'].append(msg.message_id)
+    data['delete_list'].append(message.message_id)
+    await state.update_data(delete_list=data['delete_list'])
+    await state.update_data(user_data=user_data)
+    await state.set_state(FSMTrener.enter_data_06new)
+
+
+@router.message(F.text.lower().strip() == 'да', StateFilter(FSMTrener.enter_data_06new))
+async def enter_data_06new(message: Message, bot: Bot, state: FSMContext, db: SQLiteDatabase):
+    data = await state.get_data()
+    if 'delete_list' not in data:
+        data['delete_list'] = []
+    db.update_cell(table='users_base_long', cell='sex', cell_value=data['user_data'][0],
+                   key='user_id', key_value=message.from_user.id, new=True)
+    db.update_cell(table='users_base_long', cell='height', cell_value=data['user_data'][1],
+                   key='user_id', key_value=message.from_user.id, new=True)
+    db.update_cell(table='users_base_long', cell='weight', cell_value=data['user_data'][2],
+                   key='user_id', key_value=message.from_user.id, new=True)
+    msg = await message.answer(text='Данные сохранены')
+    data['delete_list'].append(message.message_id)
+    data['delete_list'].append(msg.message_id)
     await asyncio.sleep(1)
-    exercises_table = db.select_all_table('exercises_base', new=True)
-    if exercises_table:
-        captions = []
-        for exercise in exercises_table:
-            captions.append(str(exercise[0]) + ' ' + exercise[2])
-        msg = await callback.answer(text='\n'.join(captions), reply_markup=ReplyKeyboardRemove())
-        await state.set_state(FSMTrener.workout)
-    else:
-        msg = await callback.answer(text='Сбой базы данных. Попробуйте еще раз или обратитесь к администратору',
-                                    reply_markup=ReplyKeyboardRemove())
-        await state.set_state(FSMTrener.show_exercises)
-    delete_list.append(msg.message_id)
-    await state.update_data(delete_list=delete_list)
+    logger.debug(f'{data["delete_list"]=}')
+    data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
+    msg = await message.answer(
+        text=f'Выполните разминку из видео ниже, вы можете делать упражнения в удобном для вас темпе: '
+             f'быстрее или медленнее чем показано в видео. Обратите внимание, красным цветом выделены '
+             f'мышцы, на которые делается акцент в упражнении. Вы можете выполнить другую разминку, '
+             f'вместо представленной, но важно, чтобы она разогревала все мышцы и связки от шеи до ступней.')
+    data['delete_list'].append(msg.message_id)
+    msg = await message.answer_video(
+        video=db.select_row(table='Multimedia', name='warmup', new=True)[3],
+        caption='Разминка 8 минут',
+        reply_markup=ready)
+    data['delete_list'].append(msg.message_id)
+    await state.update_data(delete_list=data['delete_list'])
+    await state.update_data(black_list=[])
+    await state.update_data(exercise_id=None)
+    await state.set_state(FSMTrener.show_exercises)
 
 
+@router.message(F.text.lower().strip() == 'да', StateFilter(FSMTrener.workout_end))
+@router.message(F.text, StateFilter(FSMTrener.show_exercises))
 @router.message(F.text.lower().strip() == 'заменить', StateFilter(FSMTrener.workout))
-@router.message(F.text.lower().strip() == 'выбрать автоматически', StateFilter(FSMTrener.workout))
-async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase):
+# @router.message(F.text.lower().strip() == 'выбрать автоматически', StateFilter(FSMTrener.workout))
+async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot):
     data = await state.get_data()
+    if 'delete_list' not in data:
+        data['delete_list'] = []
+    data['delete_list'].append(message.message_id)
+    data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
+    logger.debug('pered zamenit')
     if message.text.lower().strip() == 'заменить':
         data['black_list'].append(data['exercise_id'])
         if len(data['black_list']) > 27:
             data['black_list'] = []
         logger.debug(f'{data["black_list"]=}')
-    exercise_id = await auto_choose_exercise(message.from_user.id, db, data['black_list'])
-    exercise = db.select_row(table='exercises_base', exercise_id=exercise_id, new=True)
+
+    data['exercise_id'] = await auto_choose_exercise(message.from_user.id, db, data['black_list'])
+    logger.debug(f'{data["exercise_id"]=}')
+    exercise = db.select_row(table='exercises_base', exercise_id=data['exercise_id'], new=True)
     if exercise[5]:
+        # msg = await message.edit_media()
         msg = await message.answer_animation(
             animation=exercise[5],
-            caption=exercise[2],
-            reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Заменить")], [KeyboardButton(text="Оставить")]],
+            caption=f'{exercise[0]} {exercise[2]}',
+            reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Заменить"), KeyboardButton(text="Оставить")],
+                                                       [KeyboardButton(text="Выбрать из списка")]],
                                              one_time_keyboard=True, resize_keyboard=True))
     else:
         msg = await message.answer(text=exercise[2],
-                                   reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Заменить")],
-                                                                              [KeyboardButton(text="Оставить")]],
+                                   reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Заменить"),
+                                                                               KeyboardButton(text="Оставить")],
+                                                                              [KeyboardButton(text="Выбрать из списка")]],
                                                                     one_time_keyboard=True, resize_keyboard=True))
-    await asyncio.sleep(1)
-    data['delete_list'].append(message.message_id)
     data['delete_list'].append(msg.message_id)
-    await state.update_data(exercise_id=exercise_id)
+    await state.update_data(exercise_id=data['exercise_id'])
     await state.update_data(delete_list=data['delete_list'])
     await state.update_data(black_list=data['black_list'])
     await state.set_state(FSMTrener.workout)
@@ -350,7 +419,7 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase)
 @router.message(F.text.isdigit(), StateFilter(FSMTrener.workout))
 async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase):
     data = await state.get_data()
-    if 'exercise_id' in data:
+    if message.text.lower().strip() == 'оставить':
         exercise_id = data['exercise_id']
         data['delete_list'].pop() if data['delete_list'] else ''
     else:
@@ -359,7 +428,7 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase)
         if exercise[5]:
             await message.answer_animation(
                 animation=exercise[5],
-                caption=exercise[2],
+                caption=f'{exercise[0]} {exercise[2]}',
                 reply_markup=ReplyKeyboardRemove())
         else:
             await message.answer(text=exercise[2], reply_markup=ReplyKeyboardRemove())
@@ -368,7 +437,11 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase)
     time_start = datetime.utcnow().timestamp()
     workout_number = db.select_all_table(table='workouts_long', new=True)[-1][0] + 1
     last_workouts = db.select_last_workout_new(user_id=user[0], exercise_id=exercise_id)
+
     if last_workouts:
+        for i in range(5 - len(last_workouts)):
+            last_workouts.append((last_workouts[0][0], last_workouts[0][1], last_workouts[0][2],
+                                  len(last_workouts) + i, 0, 0, last_workouts[0][2], 0, 0, 0, 0, 0, 0))
         new_workout = (str(last_workouts[0][4]) + ' ' + str(last_workouts[1][4]) + ' ' + str(last_workouts[2][4]) +
                        ' ' + str(last_workouts[3][4]) + ' ' + str(last_workouts[4][4]))
         new_workout = generate_new_split(new_workout)
@@ -399,12 +472,55 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase)
     await state.set_state(FSMTrener.workout_process)
 
 
+@router.message(F.text.lower().strip() == 'выбрать из списка', StateFilter(FSMTrener.workout))
+async def start_trener(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot):
+    data = await state.get_data()
+    data['delete_list'].append(message.message_id)
+    data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
+    await asyncio.sleep(1)
+
+    msg = await message.answer(text='Выберите упражнение из списка ниже и пришлите его номер ответным сообщением.',
+                               reply_markup=ReplyKeyboardRemove())
+    data['delete_list'].append(msg.message_id)
+
+    await asyncio.sleep(1)
+    exercises_table = db.select_all_table('exercises_base', new=True)
+    if exercises_table:
+        captions = []
+        for exercise in exercises_table:
+            captions.append(str(exercise[0]) + ' ' + exercise[2])
+        msg = await message.answer(text='\n'.join(captions), reply_markup=ReplyKeyboardRemove())
+        await state.set_state(FSMTrener.workout)
+    else:
+        msg = await message.answer(text='Сбой базы данных. Попробуйте еще раз или обратитесь к администратору',
+                                   reply_markup=ReplyKeyboardRemove())
+        await state.set_state(FSMTrener.show_exercises)
+    data['delete_list'].append(msg.message_id)
+    await state.update_data(delete_list=data['delete_list'])
+
+
 @router.message(F.text, StateFilter(FSMTrener.workout_process))
 async def workout_process(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot):
     data = await state.get_data()
     data = await save_approach(data, db, message, data['approach'])
     await state.update_data(done_workout=data['done_workout'])
-    data = await run_timer(data, db, message, bot)
+
+    data['delete_list'].append(message.message_id)
+    data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
+    if data['approach'] == 1:
+        msg_timer = await message.answer_animation(
+            animation=db.select_row(table='multimedia', name='timer', new=True)[3],
+            caption='Отдыхайте от 10 секунд до 5 минут...',
+            reply_markup=ReplyKeyboardRemove())
+        await state.update_data(msg_timer=msg_timer.message_id)
+    await asyncio.sleep(2)
+    msg = await message.answer(
+        text=f'Выполните подход {data["approach"] + 1} из {data["new_workout"][data["approach"]]} повторений '
+             f'и нажмите кнопку "Готово". Если вы сделали другое количество, напишите сколько.', reply_markup=ready)
+    data['delete_list'].append(msg.message_id)
+    if data['approach'] == 4:
+        data['delete_list'].append(data['msg_timer'])
+    # data = await run_timer(data, db, message, bot)
     await state.update_data(delete_list=data['delete_list'])
     await state.update_data(approach=data["approach"] + 1)
     if data['approach'] == 4:
@@ -414,9 +530,10 @@ async def workout_process(message: Message, state: FSMContext, db: SQLiteDatabas
 
 
 @router.message(F.text, StateFilter(FSMTrener.workout_done))
-async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase):
+async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot):
     data = await state.get_data()
-
+    data['delete_list'].append(message.message_id)
+    data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
     data = await save_approach(data, db, message, data['approach'])
     await state.update_data(done_workout=data['done_workout'])
 
@@ -440,12 +557,11 @@ async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase):
         if awards['work']:
             msg = await message.answer(
                 text=f'Поздравляем, у вас новое достижение! Вы выполнили максимальную работу за тренировку. ',
-                     reply_markup=ReplyKeyboardRemove())
+                reply_markup=ReplyKeyboardRemove())
             data['delete_list'].append(msg.message_id)
     msg = await message.answer(text=f"Если остались силы, можете выполнить ещё 5 подходов другого упражнения. Готовы?",
                                reply_markup=yesno)
     data['delete_list'].append(msg.message_id)
-    data['delete_list'].append(message.message_id)
     await state.update_data(delete_list=data['delete_list'])
     await state.set_state(FSMTrener.workout_end)
 
@@ -453,61 +569,24 @@ async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase):
 @router.message(F.text.lower().strip() == 'нет', StateFilter(FSMTrener.workout_end))
 async def end_workout(message: Message, bot: Bot, state: FSMContext, db: SQLiteDatabase):
     data = await state.get_data()
-
+    db.update_cell(table='users_base_long', cell='trener_sub', cell_value=datetime.utcnow().isoformat(),
+                   key='user_id', key_value=message.from_user.id, new=True)
     msg = await message.answer(text='До новых встреч!', reply_markup=ReplyKeyboardRemove())
     data['delete_list'].append(msg.message_id)
     data['delete_list'].append(message.message_id)
-    await asyncio.sleep(30)
+    await asyncio.sleep(10)
     for message_id in data['delete_list']:
         await bot.delete_message(chat_id=message.from_user.id, message_id=message_id)
     await state.update_data(delete_list=[])
     await state.clear()
 
-@router.message(Command(commands='fitnesss'))
-async def check_bdate_00new(message: Message, state: FSMContext, db: SQLiteDatabase):
-    user = db.select_table('users_base_long', user_id=message.from_user.id, new=True)
-    # проверяем наличие даты рождения
-    if user[7]:
-        await state.set_state(FSMTrener.check_data_01new)
-    else:
-        # иначе просим её ввести
-        await message.answer(text='Введите через пробел дату вашего рождения, в формате 22 06 1981: ',
-                             reply_markup=ReplyKeyboardRemove())
-        await state.set_state(FSMTrener.enter_bdate_00new)
 
-
-@router.message(F.text, StateFilter(FSMTrener.enter_bdate_00new))
-async def enter_bdate_00new(message: Message, bot: Bot, state: FSMContext, db: SQLiteDatabase):
-    user = db.select_row(table='users_base_long', user_id=message.from_user.id, new=True)
-    date = dateutil.parser.parse(message.text, fuzzy=True)
-    date = datetime.isoformat(date)
-    logger.debug(date)
-    db.update_cell(table='users_base_long', cell='birth_date', cell_value=date,
+@router.message(F.text.lower().strip() == 'напомнить через неделю')
+async def remind_after_week(message: Message, bot: Bot, state: FSMContext, db: SQLiteDatabase):
+    db.update_cell(table='users_base_long', cell='trener_sub', cell_value=datetime.utcnow().isoformat(),
                    key='user_id', key_value=message.from_user.id, new=True)
-    await message.answer(text=LEXICON_RU['enter_date_00'])
-    await state.set_state(FSMTrener.check_data_01new)
+    await message.answer(text='Добавили вас в рассылку')
 
-
-@router.message(Command(commands='fitnesss'))
-async def check_data_01new(message: Message, state: FSMContext, db: SQLiteDatabase):
-    delete_list = []
-    user = db.select_table('users_base_long', user_id=message.from_user.id, new=True)
-    if user[11] is None:
-        msg = await message.answer(text='Введите через пробел свои пол(м/ж) и возраст, рост, вес(целые числа), '
-                                        'например, ж 20 160 70:',
-                                   reply_markup=ReplyKeyboardRemove())
-        delete_list.append(msg.message_id)
-        await state.set_state(FSMTrener.warmup_02new)
-    else:
-        msg = await message.answer(
-            text=f'Личный тренер приветствует вас!\n Выполните разминку из видео ниже, вы можете делать упражнения в удобном для вас темпе: '
-                 f'быстрее или медленнее чем показано в видео. Обратите внимание, красным цветом выделены '
-                 f'мышцы, на которые делается акцент в упражнении. Вы можете выполнить другую разминку, '
-                 f'вместо представленной, но важно, чтобы она разогревала все мышцы и связки от шеи до ступней.')
-        delete_list.append(msg.message_id)
-        msg = await message.answer_video(
-            video=db.select_row(table='Multimedia', name='warmup', new=True)[3],
-            caption='Разминка 8 минут',
-            reply_markup=ready)
-        delete_list.append(msg.message_id)
-        await state.set_state(FSMTrener.show_exercises)
+@router.message(F.text.lower().strip() == 'отписаться от напоминаний')
+async def unsubscribe(message: Message, bot: Bot, state: FSMContext, db: SQLiteDatabase):
+    await message.answer(text='Отписали вас. Если запустите тренировку самостоятельно, напоминания возобновятся.')

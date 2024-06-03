@@ -72,11 +72,16 @@ class SQLiteDatabase:
         return self.execute(f'SELECT COUNT(*) FROM {table};', fetchone=True, new=new)
 
     def update_cell(self, table, cell, cell_value, key, key_value, new=False):
-        sql = f'/*многострочный коммент 1*/UPDATE {table}/*многострочный коммент 2*/ SET {cell}=? WHERE {key}=? -- Однострочный коммент'
+        sql = f'UPDATE {table} SET {cell}=? WHERE {key}=? '
         return self.execute(sql, parameters=(cell_value, key_value), commit=True, new=new)
 
     def select_row(self, table, new=False, **kwargs):
         sql = f'SELECT * FROM {table} WHERE '
+        sql, parameters = self.format_args(sql, kwargs)
+        return self.execute(sql, parameters, fetchone=True, new=new)
+
+    def select_cell(self, table, column, new=False, **kwargs):
+        sql = f'SELECT {column} FROM {table} WHERE '
         sql, parameters = self.format_args(sql, kwargs)
         return self.execute(sql, parameters, fetchone=True, new=new)
 
