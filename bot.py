@@ -11,7 +11,7 @@ from logging_settings import logger
 from tg_bot.config import load_config, Config
 from tg_bot.daemons.life_calendar import send_life_calendar
 
-from tg_bot.database.sqlite import SQLiteDatabase
+from tg_bot.database.sqlite2 import SQLiteDatabase
 from tg_bot.handlers import a_user, a_other, a_admin, atomy, gsheet, life_calendar, update_db_sqlite, trener, trener_add, energy_balance
 from tg_bot.middlewares.shadow_ban import ShadowBanMiddleware
 from tg_bot.middlewares.throttling import ThrottlingMiddleware
@@ -38,7 +38,6 @@ async def on_startup_notify(bot: Bot, config: Config):
 
 async def daemons(bot, db, dp):
     await send_life_calendar(db, bot, dp)
-
 
 
 async def writelog(dp: Dispatcher):
@@ -90,17 +89,18 @@ async def main():
     db = SQLiteDatabase()
     try:
         logger.info('Создаём подключение к базе данных')
-        db.create_table_users()
-        db.create_table_exercises_base()
-        db.create_table_muscles_base()
-        db.create_table_muscles_user()
-        db.create_table_workouts()
-        db.create_table_muscle_groups()
-        db.create_energy_balance()
-        db.create_weight_table()
-        db.create_table_workouts_short()
         # разовые коррекции БД:
-        # db.add_sex_height()
+        # db.create_table_users()
+        # db.create_table_exercises_base()
+        # db.create_table_muscles_base()
+        # db.create_table_muscles_user()
+        # db.create_table_workouts()
+        # db.create_table_muscle_groups()
+        # db.create_energy_balance()
+        # db.create_weight_table()
+
+        db.delete_table('workouts_short')
+        db.create_table_workouts_short()
     except Exception as e:
         logger.exception(e)
     # создаем клиент пирограм

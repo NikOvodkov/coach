@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, BotCommandScopeChat, CallbackQuery
 
 from logging_settings import logger
-from tg_bot.database.sqlite import SQLiteDatabase
+from tg_bot.database.sqlite2 import SQLiteDatabase
 from tg_bot.filters.admin import IsAdmin
 from tg_bot.keyboards.inline import keyboard
 from tg_bot.services.setting_commands import set_admins_commands, set_chat_admins_commands
@@ -22,18 +22,18 @@ async def admin_start(message: Message, db: SQLiteDatabase, state: FSMContext):
     name = message.from_user.full_name
     user_id = message.from_user.id
     cur_state = await state.get_state()
-    if cur_state:
-        await message.answer(text=f'State is not None: {cur_state}')
+    cur_data = await state.get_data()
+    if cur_state or cur_data:
+        await message.answer(text=f'State is not None: {cur_state} data= {cur_data}')
         await state.clear()
     await set_admins_commands(message.bot, user_id)
     try:
         db.add_user_new(user_id=user_id, name=name)
-        db.add_user(user_id=user_id, name=name)
     except sqlite3.IntegrityError as err:
         # print(err)
         logger.exception(f'User {name=} {user_id=} not added to db!')
     finally:
-        count_users = db.count_rows('users_base_long', new=True)[0]
+        count_users = db.count_rows('users_base_long')[0]
         await message.answer(
             '\n'.join([
                 f'Привет, админ {message.from_user.full_name}!',

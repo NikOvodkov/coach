@@ -5,7 +5,7 @@ from aiogram.types import Message
 
 from logging_settings import logger
 from tg_bot.config import load_config
-from tg_bot.database.sqlite import SQLiteDatabase
+from tg_bot.database.sqlite2 import SQLiteDatabase
 from tg_bot.filters.admin import IsAdmin
 from tg_bot.states.update_db import FSMUpdateDb
 
@@ -24,9 +24,9 @@ async def add_email(message: Message, state: FSMContext):
 @router.message(StateFilter(FSMUpdateDb.email))
 async def enter_email(message: Message, state: FSMContext, db: SQLiteDatabase):
     email = message.text
-    db.update_cell(table='users_base_long', cell='email', cell_value=email, key='user_id', key_value=message.from_user.id, new=True)
+    db.update_cell(table='users_base_long', cell='email', cell_value=email, key='user_id', key_value=message.from_user.id)
     # user = db.select_user(user_id=message.from_user.id)
-    user = db.select_row(table='users_base_long', user_id=message.from_user.id, new=True)
+    user = db.select_rows(table='users_base_long', fetch='one', tuple_=True, user_id=message.from_user.id)
     await message.answer(f'Данные были обновлены. Запись в бд: {user}')
     await state.clear()
 
@@ -52,7 +52,7 @@ async def execute_sql(message: Message, state: FSMContext, db: SQLiteDatabase):
 
 @router.message(StateFilter(FSMUpdateDb.show_table))
 async def execute_sql(message: Message, state: FSMContext, db: SQLiteDatabase):
-    table = db.select_all_table(message.text, new=True)
+    table = db.select_table(message.text)
     table = list(map(str, table))
     logger.debug(table)
     await message.answer('\n'.join(table))

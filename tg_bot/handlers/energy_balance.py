@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 
 from logging_settings import logger
-from tg_bot.database.sqlite import SQLiteDatabase
+from tg_bot.database.sqlite2 import SQLiteDatabase
 from tg_bot.keyboards.energy_balance import balance
 
 router = Router()
@@ -34,7 +34,8 @@ async def start_energy_balance(message: Message, state: FSMContext, db: SQLiteDa
                               'Траты калорий:\n'
                               '- знак "-", затем ЦЕЛОЕ число в килокалориях (Ккал) с комментарием или без в формате: '
                               '"-175 утренняя пробежка", данная запись означает что вы потратили 175Ккал во время '
-                              'утренней пробежки.', reply_markup=balance)
+                              'утренней пробежки.\n'
+                              'ТРЕНИРОВКИ В БОТЕ УЧИТЫВАЮТСЯ АВТОМАТИЧЕСКИ, ВНОСИТЬ ИХ НЕ НУЖНО!', reply_markup=balance)
 
 
 # Принимаем либо 1 число и комментарий: +200 ужин, либо 4 числа и комментарий: +200 40 50 80 гамбургер
@@ -100,10 +101,10 @@ async def input_weight(message: Message, state: FSMContext, db: SQLiteDatabase):
 @router.message(F.text.startswith('Посмотреть вес'))
 async def input_weight(message: Message, state: FSMContext, db: SQLiteDatabase):
     msg = ''
-    weights = db.select_rows('users_weights_long', new=True, user_id=message.from_user.id)
+    weights = db.select_rows('users_weights_long', fetch='all', user_id=message.from_user.id)
     logger.debug(f'{weights=}')
     for weight in weights:
-        msg += weight[3][0:10] + ': ' + str(weight[1]) + 'кг - ' + str(weight[2]) + '%\n'
+        msg += weight['date'][0:10] + ': ' + str(weight['weight']) + 'кг - ' + str(weight['fat']) + '%\n'
     if msg == '':
         await message.answer(text='Таблица пока пуста', reply_markup=balance)
     else:
@@ -113,11 +114,11 @@ async def input_weight(message: Message, state: FSMContext, db: SQLiteDatabase):
 @router.message(F.text.startswith('Посмотреть калории'))
 async def input_weight(message: Message, state: FSMContext, db: SQLiteDatabase):
     msg = ''
-    weights = db.select_rows('energy_balance', new=True, user_id=message.from_user.id)
+    weights = db.select_rows('energy_balance', fetch='all', user_id=message.from_user.id)
     logger.debug(f'{weights=}')
     for weight in weights:
-        msg += (weight[6][0:10] + ' ' + weight[5] + ': ' + str(weight[1]) + 'Ккал= ' +
-                str(weight[2]) + 'г белка +' + str(weight[3]) + 'г жира +' + str(weight[4]) + 'г углеводов\n')
+        msg += (weight['date'][0:10] + ' ' + weight['comment'] + ': ' + str(weight['kcal']) + 'Ккал= ' + str(weight['proteins'])
+                + 'г белка +' + str(weight['fats']) + 'г жира +' + str(weight['carbohydrates']) + 'г углеводов\n')
     if msg == '':
         await message.answer(text='Таблица пока пуста', reply_markup=balance)
     else:

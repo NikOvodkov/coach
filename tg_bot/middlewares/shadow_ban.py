@@ -5,6 +5,7 @@ from aiogram.types import TelegramObject, User
 
 from logging_settings import logger
 from tg_bot.config import Config
+from tg_bot.database.sqlite2 import SQLiteDatabase
 
 
 class ShadowBanMiddleware(BaseMiddleware):
@@ -15,12 +16,12 @@ class ShadowBanMiddleware(BaseMiddleware):
             event: TelegramObject,
             data: Dict[str, Any]
     ) -> Any:
-        db = data.get('db')
+        db: SQLiteDatabase = data.get('db')
         aiobot = data.get('bot')
         config: Config = data.get('config')
         tg_user: User = data.get('event_from_user')
         # db_user = db.select_row(table='Users', user_id=tg_user.id)
-        db_user = db.select_row(table='users_base_long', user_id=tg_user.id, new=True)
+        db_user = db.select_rows(table='users_base_long', fetch='one', user_id=tg_user.id)
         # await event.message.answer(f'тест ансвера {db_user[9]}')
         # await event.message.forward(config.tg_bot.admin_ids[0])
         logger.debug('Enter shadow_ban')
@@ -30,7 +31,10 @@ class ShadowBanMiddleware(BaseMiddleware):
                                            f'общается с ботом')
         logger.debug('AfterIF shadow_ban')
         if db_user is not None:
-            db_user = db.select_row(table='users_base_long', user_id=tg_user.id, new=True)
-            if db_user[3] == 0:
+            # db_user = db.select_row(table='users_base_long', user_id=tg_user.id, new=True)
+            db_user = db.select_rows(table='users_base_long', fetch='one', user_id=tg_user.id)
+            if db_user['status'] == 0:
+                logger.debug('user blocked')
                 return
+            logger.debug('user active')
         return await handler(event, data)

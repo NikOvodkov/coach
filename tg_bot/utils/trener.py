@@ -32,11 +32,17 @@ def generate_new_split(set_str: str) -> str:
     set_symbols = set_str.split(' ')
     set_old = list(map(int, set_symbols))
     set_new = [0, 0, 0, 0, 0]
-    set_new[0] = str(max(1, math.floor(max(set_old) / 2)))
-    set_new[1] = str(max(set_old))
-    set_new[2] = str(math.ceil(max(set_old) / 2))
-    set_new[3] = str(math.ceil(max(set_old) / 2))
-    set_new[4] = str(max(0, sum(set_old) - max(1, math.floor(max(set_old) / 2)) - max(set_old) - 2 * math.ceil(max(set_old) / 2) + 1))
+    # первый подход = половине от максимума на прошлой тренировке
+    set_new[0] = max(1, math.floor(max(set_old) / 2))
+    # второй подход = максимуму+ на прошлой тренировке
+    set_new[1] = max(set_old) + 1
+    # третий подход = половине от максимума на прошлой тренировке + 1
+    set_new[2] = math.ceil(max(set_old) / 2) + 1
+    # четвёртый подход = половине от максимума на прошлой тренировке
+    set_new[3] = math.ceil(max(set_old) / 2)
+    # пятый подход
+    set_new[4] = max(1, sum(set_old) - set_new[0] - set_new[1] - set_new[2] - set_new[3] + 1)
+    set_new = list(map(str, set_new))
     return ' '.join(set_new)
 
 
