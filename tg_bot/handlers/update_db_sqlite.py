@@ -24,9 +24,9 @@ async def add_email(message: Message, state: FSMContext):
 @router.message(StateFilter(FSMUpdateDb.email))
 async def enter_email(message: Message, state: FSMContext, db: SQLiteDatabase):
     email = message.text
-    db.update_cell(table='users_base_long', cell='email', cell_value=email, key='user_id', key_value=message.from_user.id)
+    db.update_cell(table='users', cell='email', cell_value=email, key='user_id', key_value=message.from_user.id)
     # user = db.select_user(user_id=message.from_user.id)
-    user = db.select_rows(table='users_base_long', fetch='one', tuple_=True, user_id=message.from_user.id)
+    user = db.select_rows(table='users', fetch='one', tuple_=True, user_id=message.from_user.id)
     await message.answer(f'Данные были обновлены. Запись в бд: {user}')
     await state.clear()
 
@@ -52,7 +52,7 @@ async def execute_sql(message: Message, state: FSMContext, db: SQLiteDatabase):
 
 @router.message(StateFilter(FSMUpdateDb.show_table))
 async def execute_sql(message: Message, state: FSMContext, db: SQLiteDatabase):
-    table = db.select_table(message.text)
+    table = db.select_table(message.text, tuple_=True)
     table = list(map(str, table))
     logger.debug(table)
     await message.answer('\n'.join(table))

@@ -1,4 +1,6 @@
 # Инициализируем роутер уровня модуля
+from datetime import datetime
+
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -101,10 +103,11 @@ async def input_weight(message: Message, state: FSMContext, db: SQLiteDatabase):
 @router.message(F.text.startswith('Посмотреть вес'))
 async def input_weight(message: Message, state: FSMContext, db: SQLiteDatabase):
     msg = ''
-    weights = db.select_rows('users_weights_long', fetch='all', user_id=message.from_user.id)
+    weights = db.select_rows('users_weights', fetch='all', user_id=message.from_user.id)
     logger.debug(f'{weights=}')
     for weight in weights:
-        msg += weight['date'][0:10] + ': ' + str(weight['weight']) + 'кг - ' + str(weight['fat']) + '%\n'
+        date = datetime.fromisoformat(weight['date']).strftime('%d.%m.%y')
+        msg += date + ': ' + str(weight['weight']) + 'кг - ' + str(weight['fat']) + '%\n'
     if msg == '':
         await message.answer(text='Таблица пока пуста', reply_markup=balance)
     else:
@@ -117,7 +120,8 @@ async def input_weight(message: Message, state: FSMContext, db: SQLiteDatabase):
     weights = db.select_rows('energy_balance', fetch='all', user_id=message.from_user.id)
     logger.debug(f'{weights=}')
     for weight in weights:
-        msg += (weight['date'][0:10] + ' ' + weight['comment'] + ': ' + str(weight['kcal']) + 'Ккал= ' + str(weight['proteins'])
+        date = datetime.fromisoformat(weight['date']).strftime('%d.%m.%y')
+        msg += (date + ' ' + weight['comment'] + ': ' + str(weight['kcal']) + 'Ккал= ' + str(weight['proteins'])
                 + 'г белка +' + str(weight['fats']) + 'г жира +' + str(weight['carbohydrates']) + 'г углеводов\n')
     if msg == '':
         await message.answer(text='Таблица пока пуста', reply_markup=balance)

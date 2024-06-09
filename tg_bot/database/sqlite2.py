@@ -73,12 +73,14 @@ class SQLiteDatabase:
                 life_date VARCHAR(255),  /* дата окончания календаря */
                 life_calendar_sub VARCHAR(255),  /* дата следующего получения календаря, либо None */
                 coach_sub VARCHAR(255),  /* дата следующего напоминания тренера, либо None */
-                weight INTEGER
+                weight INTEGER,
+                height INTEGER,
+                sex VARCHAR(1)
                 );
          INSERT OR IGNORE INTO users (user_id, name, email, status, latitude, longitude, time_zone, birth_date, life_date,
-                                      life_calendar_sub, coach_sub, weight)
+                                      life_calendar_sub, coach_sub, weight, height, sex)
          SELECT user_id, name, email, status, latitude, longitude, time_zone, birth_date, life_date,
-                                      life_calendar_sub, trener_sub, weight FROM users_base_long;
+                                      life_calendar_sub, trener_sub, weight, height, sex FROM users_base_long;
         '''
         self.execute(sql, commit=True, script=True)
 
@@ -107,7 +109,7 @@ class SQLiteDatabase:
         INSERT OR IGNORE INTO exercises (exercise_id, user_id, name, work, file_id, file_unique_id)
                 SELECT exercise_id, user_id, name, work, file_id, file_unique_id FROM exercises_base;
         '''
-        self.execute(sql, commit=True)
+        self.execute(sql, commit=True, script=True)
 
     def add_exercise(self, exercise_id: int, user_id: int, type_: int, name: str, description: str = None,
                      work: float = None, file_id: str = None, file_unique_id: str = None):
@@ -150,7 +152,6 @@ class SQLiteDatabase:
                 );
         INSERT OR IGNORE INTO muscles (muscle_id, name, group_id, group_name, mass)
         SELECT * FROM muscles_base;
-                );        
         '''
         self.execute(sql, commit=True, script=True)
 
@@ -184,7 +185,7 @@ class SQLiteDatabase:
         CREATE TABLE IF NOT EXISTS workouts (
                 workout_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER REFERENCES users (user_id),
-                date VARCHAR(255),
+                date VARCHAR(31),
                 approaches INTEGER,
                 work REAL,
                 arms REAL,
@@ -208,13 +209,15 @@ class SQLiteDatabase:
     def create_table_approaches(self):
         sql = '''
         CREATE TABLE IF NOT EXISTS approaches (
+                approach_id INTEGER GENERATED ALWAYS AS ((workout_id * 100) + number) STORED UNIQUE, /* уникальный номер подхода */
                 workout_id INTEGER NOT NULL, /* номер тренировки (из одного упражнения) */
                 user_id INTEGER REFERENCES users (user_id), /* пользователь */
                 exercise_id INTEGER REFERENCES exercises (exercise_id), /* упражнение */
                 number INTEGER, /* номер подхода в упражнении, обычно 1-5 */
+                
                 dynamic INTEGER, /* количество повторений в подходе */
                 static INTEGER, /* задержка в секундах в подходе*/
-                date VARCHAR(255), /* дата тренировки */
+                date VARCHAR(31), /* дата тренировки */
                 work REAL, /* работа, выполненная за данный подход */
                 arms REAL, /* часть работы, выполненной мышцами рук */
                 legs REAL, /* часть работы, выполненной мышцами ног */
@@ -238,8 +241,8 @@ class SQLiteDatabase:
 
     def select_last_approaches(self, user_id: int, exercise_id: int = None):
         sql = (f'SELECT * FROM approaches WHERE user_id = {user_id} AND exercise_id = {exercise_id} '
-               f'ORDER BY workout_id DESC, approach ASC')
-        return self.execute(sql, fetchall=True)
+               f'ORDER BY workout_id DESC, number ASC')
+        return self.execute(sql, fetch='all')
 
     def create_table_energy(self):
         sql = '''
@@ -250,7 +253,7 @@ class SQLiteDatabase:
                 fats          INTEGER,
                 carbohydrates INTEGER,
                 comment       VARCHAR, /* сюда записывается съеденный продукт/блюдо или тип тренировки/активности */
-                date          VARCHAR(255)
+                date          VARCHAR(31)
                 );
         INSERT OR IGNORE INTO energy (user_id, kcal, proteins, fats, carbohydrates, comment, date)
         SELECT * FROM energy_balance;
@@ -264,6 +267,7 @@ class SQLiteDatabase:
         self.execute(sql, parameters=parameters, commit=True)
 
         # таблица содержит историю взвешиваний
+
     def create_table_weight(self):
         sql = '''
         CREATE TABLE IF NOT EXISTS users_weights (
@@ -272,7 +276,8 @@ class SQLiteDatabase:
                 fat     INTEGER,
                 date    VARCHAR(255)
                 );
-        INSERT OR IGNORE INTO users_weights (user_id, weight, fat, date) VALUES(?,?,?,?)
+        INSERT OR IGNORE INTO users_weights (user_id, weight, fat, date)
+        SELECT * FROM users_weights_long;
         '''
         self.execute(sql, commit=True, script=True)
 
@@ -281,7 +286,7 @@ class SQLiteDatabase:
         parameters = (user_id, weight, fat, date)
         self.execute(sql, parameters=parameters, commit=True)
 
-#################################################################################
+    #################################################################################
 
     def clear_table(self, table):
         self.execute(f'DELETE FROM {table} WHERE True', commit=True)
@@ -301,11 +306,32 @@ class SQLiteDatabase:
         sql, parameters = self.format_args(sql, kwargs)
         return self.execute(sql, parameters, fetch=fetch, tuple_=tuple_)
 
+    def select_filtered_sorted_rows(self, table, fetch, sql2: str = '', tuple_=False, **kwargs):
+        sql = f'SELECT * FROM {table} WHERE '
+        '''
+        ORDER BY workout_id DESC, number ASC
+        ORDER BY LENGTH(column_name) DESC LIMIT 1;
+        '''
+        sql, parameters = self.format_args(sql, kwargs)
+        return self.execute(sql + sql2, parameters, fetch=fetch, tuple_=tuple_)
+
     def update_cell(self, table, cell, cell_value, key, key_value):
         sql = f'UPDATE {table} SET {cell}=? WHERE {key}=? '
         return self.execute(sql, parameters=(cell_value, key_value), commit=True)
 
-##############################################################################################
+    def filter(self, table, fetch, tuple_=False, **kwargs):
+        sql = f'SELECT * FROM {table} WHERE '
+        sql, parameters = self.format_args(sql, kwargs)
+        return self.execute(sql, parameters, fetch=fetch, tuple_=tuple_)
+
+    '''
+    SELECT column_name
+FROM table_name
+ORDER BY LENGTH(column_name) DESC
+LIMIT 1;
+    '''
+
+    ##############################################################################################
 
     def add_workout_short(self, workout_id: int, user_id: int, date: str, approaches: int,
                           work: float, arms: float, legs: float, chest: float, abs_: float, back: float):
@@ -322,9 +348,9 @@ class SQLiteDatabase:
         parameters = (workout_id, user_id, exercise_id, approach, dynamic, static, date, work, arms, legs, chest, abs_, back)
         self.execute(sql, parameters=parameters, commit=True)
 
-    def select_last_workout_new(self, user_id: int, exercise_id: int = None, tuple_=False):
-        sql = (f'SELECT * FROM workouts_long WHERE user_id = {user_id} AND exercise_id = {exercise_id} '
-               f'ORDER BY workout_id DESC, approach ASC')
+    def select_last_workout(self, user_id: int, exercise_id: int = None, tuple_=False):
+        sql = (f'SELECT * FROM approaches WHERE user_id = {user_id} AND exercise_id = {exercise_id} '
+               f'ORDER BY workout_id DESC, number ASC')
         return self.execute(sql, fetch='all', tuple_=tuple_)
 
     def add_user_new(self, user_id: int, name: str, email: str = None, status: int = 1,
@@ -383,17 +409,34 @@ class SQLiteDatabase:
                               workouts_voc[workout][6], workouts_voc[workout][7], workouts_voc[workout][8])
                 self.execute(sql, parameters=parameters, commit=True)
 
+    def change_repeated_approaches(self):
+        """
+        1. создаём пустое множество номеров подходов
+        2. генерируем новый номер подхода и добавляем в множество если нет, если есть меняем номер подхода на +1
+        :param user_id:
+        :param exercise_id:
+        :param tuple_:
+        :return:
+        """
+        ind = True
+        while ind:
+            ind = False
+            apps_set = set()
+            approaches = self.select_table('workouts_long')
+            row_id = 0
+            for approach in approaches:
+                row_id += 1
+                new_number = approach['workout_id'] * 100 + approach['approach']
+                if new_number in apps_set:
+                    ind = True
+                    self.update_cell('workouts_long', 'approach', approach['approach'] + 1, 'rowid', row_id)
+                else:
+                    apps_set.add(new_number)
+        logger.debug('workouts now unique')
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+    def add_sex_height(self):
+        sql = '''
+        ALTER TABLE users ADD height INTEGER;
+        ALTER TABLE users ADD sex VARCHAR(1);
+        '''
+        self.execute(sql, commit=True, script=True)

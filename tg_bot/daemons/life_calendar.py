@@ -28,12 +28,12 @@ def is_daytime(user):
 async def send_life_calendar(db: SQLiteDatabase, bot: Bot, dp: Dispatcher):
     while True:
         logger.debug(f'enter_while_life_calendar')
-        records = db.select_table('users_base_long')
+        records = db.select_table('users')
         for row in records:
-            if row['trener_sub'] and is_daytime(row) and row['status'] == 1:
+            if row['coach_sub'] and is_daytime(row) and row['status'] == 1:
                 logger.debug(f'enter_sub_trener')
-                if (datetime.now() - datetime.fromisoformat(row['trener_sub'])) >= timedelta(days=7):
-                    db.update_cell(table='users_base_long', cell='trener_sub', cell_value=None,
+                if (datetime.now() - datetime.fromisoformat(row['coach_sub'])) >= timedelta(days=7):
+                    db.update_cell(table='users', cell='coach_sub', cell_value=None,
                                    key='user_id', key_value=row['user_id'])
                     await bot.send_message(row['user_id'],
                                            text='Вы не занимались уже 7 дней, достигнутый прогресс скоро начнёт уходить!',
@@ -67,7 +67,7 @@ async def send_life_calendar(db: SQLiteDatabase, bot: Bot, dp: Dispatcher):
                         await bot.send_photo(row['user_id'], photo=FSInputFile(path), reply_markup=ReplyKeyboardRemove(),
                                              caption=f'Очередная неделя подходит к концу, встречайте неделю {lived_weeks + 1}!')
 
-                    db.update_cell(table='users_base_long', cell='life_calendar_sub', cell_value=None,
+                    db.update_cell(table='users', cell='life_calendar_sub', cell_value=None,
                                    key='user_id', key_value=row['user_id'])
                     os.remove(path)
                     await dp.storage.set_state(StorageKey(bot_id=bot.id, chat_id=row['user_id'], user_id=row['user_id']),

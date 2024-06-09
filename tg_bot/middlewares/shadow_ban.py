@@ -20,8 +20,7 @@ class ShadowBanMiddleware(BaseMiddleware):
         aiobot = data.get('bot')
         config: Config = data.get('config')
         tg_user: User = data.get('event_from_user')
-        # db_user = db.select_row(table='Users', user_id=tg_user.id)
-        db_user = db.select_rows(table='users_base_long', fetch='one', user_id=tg_user.id)
+        db_user = db.select_rows(table='users', fetch='one', user_id=tg_user.id)
         # await event.message.answer(f'тест ансвера {db_user[9]}')
         # await event.message.forward(config.tg_bot.admin_ids[0])
         logger.debug('Enter shadow_ban')
@@ -31,8 +30,7 @@ class ShadowBanMiddleware(BaseMiddleware):
                                            f'общается с ботом')
         logger.debug('AfterIF shadow_ban')
         if db_user is not None:
-            # db_user = db.select_row(table='users_base_long', user_id=tg_user.id, new=True)
-            db_user = db.select_rows(table='users_base_long', fetch='one', user_id=tg_user.id)
+            db_user = db.select_rows(table='users', fetch='one', user_id=tg_user.id)
             if db_user['status'] == 0:
                 logger.debug('user blocked')
                 return

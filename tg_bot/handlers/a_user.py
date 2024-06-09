@@ -25,7 +25,7 @@ async def process_start_command(message: Message, db: SQLiteDatabase, state: FSM
     name = message.from_user.full_name
     user_id = message.from_user.id
     try:
-        db.add_user_new(user_id=user_id, name=name)
+        db.add_user(user_id=user_id, name=name)
         await message.forward(config.tg_bot.admin_ids[0])
     except sqlite3.IntegrityError as err:
         # print(err)
@@ -60,7 +60,7 @@ async def process_user_blocked_bot(event: ChatMemberUpdated, bot: Bot, config: C
     await bot.send_message(config.tg_bot.admin_ids[0],
                            text=f'Пользователь {event.from_user.id} {event.from_user.username} заблокировал бота')
     try:
-        db.update_cell(table='users_base_long', cell='status', cell_value='inactive', key='user_id', key_value=event.from_user.id)
+        db.update_cell(table='users', cell='status', cell_value=0, key='user_id', key_value=event.from_user.id)
     except sqlite3.IntegrityError as err:
         # print(err)
         logger.exception(err)
@@ -72,7 +72,7 @@ async def process_user_unblocked_bot(event: ChatMemberUpdated, bot: Bot, config:
     await bot.send_message(config.tg_bot.admin_ids[0],
                            text=f'Пользователь {event.from_user.id} {event.from_user.username} разблокировал бота')
     try:
-        db.update_cell(table='users_base_long', cell='status', cell_value='active', key='user_id', key_value=event.from_user.id)
+        db.update_cell(table='users', cell='status', cell_value=1, key='user_id', key_value=event.from_user.id)
     except sqlite3.IntegrityError as err:
         # print(err)
         logger.exception(err)

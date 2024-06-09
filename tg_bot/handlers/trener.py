@@ -48,8 +48,7 @@ async def auto_choose_exercise(user, db: SQLiteDatabase, black_list) -> int:
     """
     month_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
     week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
-    # all_workouts = db.select_rows(table='workouts_short', user_id=user, new=True)
-    all_workouts = db.select_rows(table='workouts_short', fetch='all', tuple_=True, user_id=user)
+    all_workouts = db.select_rows(table='workouts', fetch='all', tuple_=True, user_id=user)
     all_workouts = sorted(all_workouts, key=lambda a: 0 if a[4] is None else a[4], reverse=True)
     max_job = 0
     for workout in all_workouts:
@@ -59,28 +58,26 @@ async def auto_choose_exercise(user, db: SQLiteDatabase, black_list) -> int:
                 break
     logger.debug(f'{max_job=}')
 
-    # all_workouts = db.select_rows(table='workouts_long', user_id=user, new=True)
-    all_workouts = db.select_rows(table='workouts_long', fetch='all', tuple_=True, user_id=user)
-    all_workouts = sorted(all_workouts, key=lambda a: '0' if a[6] is None else a[6], reverse=True)
+    all_workouts = db.select_rows(table='approaches', fetch='all', tuple_=True, user_id=user)
+    all_workouts = sorted(all_workouts, key=lambda a: '0' if a[7] is None else a[7], reverse=True)
     work = {'Руки': 0, 'Ноги': 0, 'Грудь': 0, 'Живот': 0, 'Спина': 0}
     for workout in all_workouts:
-        if str(workout[7]) != 'None' and str(workout[6]) != 'None' and str(workout[6]) > week_ago:
-            work['Руки'] += workout[8]
-            work['Ноги'] += workout[9]
-            work['Грудь'] += workout[10]
-            work['Живот'] += workout[11]
-            work['Спина'] += workout[12]
+        if workout[8] and workout[7] and str(workout[7]) > week_ago:
+            work['Руки'] += workout[9]
+            work['Ноги'] += workout[10]
+            work['Грудь'] += workout[11]
+            work['Живот'] += workout[12]
+            work['Спина'] += workout[13]
     min_job_group = min(work, key=work.get)
     logger.debug(f'{min_job_group=}')
 
-    # exercises = sorted(db.select_rows(table='exercises_muscles_base', muscle_name=min_job_group, new=True))
-    exercises = sorted(db.select_rows(table='exercises_muscles_base', fetch='all', tuple_=True, muscle_name=min_job_group))
+    exercises = sorted(db.select_rows(table='exercises_muscles', fetch='all', tuple_=True, muscle_name=min_job_group))
     exercises_voc = {}
     for exercise in exercises:
         exercises_voc[exercise[0]] = [0, exercise[4]]
-    exercises = db.select_rows(table='workouts_long', fetch='all', tuple_=True, user_id=user)
+    exercises = db.select_rows(table='approaches', fetch='all', tuple_=True, user_id=user)
     for exercise in exercises:
-        exercises_voc[exercise[2]][0] += 1
+        exercises_voc[exercise[3]][0] += 1
     logger.debug(f'{black_list=}')
     for ex in black_list:
         exercises_voc.pop(ex, '')
@@ -104,43 +101,52 @@ async def award_user(user, db: SQLiteDatabase):
     :return:
     """
 
-    two_hours_ago = (datetime.utcnow() - timedelta(seconds=7200)).isoformat()
     # максимальный повтор упражнения
-    # all_workouts = sorted(db.select_rows(table='workouts_long', user_id=user, new=True), reverse=True)
-    all_workouts = sorted(db.select_rows(table='workouts_long', fetch='all', tuple_=True, user_id=user), reverse=True)
-    exercise = all_workouts[0][2]
-    # last_workout = sorted(db.select_rows(table='workouts_long', user_id=user, exercise_id=exercise,
-    #                                      workout_id=all_workouts[0][0], new=True))
-    last_workout = sorted(db.select_rows(table='workouts_long', fetch='all', tuple_=True, user_id=user, exercise_id=exercise,
-                                         workout_id=all_workouts[0][0]))
-    # all_workouts = sorted(db.select_rows(table='workouts_long', user_id=user, exercise_id=exercise, new=True))
-    all_workouts = sorted(db.select_rows(table='workouts_long', fetch='all', tuple_=True, user_id=user, exercise_id=exercise))
+    last_max_approach = db.select_filtered_sorted_rows(table='approaches', sql2=' ORDER BY workout_id DESC, dynamic DESC',
+                                                       fetch='one', user_id=user)
+    exercise_id = last_max_approach['exercise_id']
+    workout_id = last_max_approach['workout_id']
+    max_approach = db.select_filtered_sorted_rows(table='approaches',
+                                                  sql2=f' AND workout_id <> {workout_id} ORDER BY dynamic DESC',
+                                                  fetch='one', user_id=user,
+                                                  exercise_id=exercise_id)
+    last_job = db.select_filtered_sorted_rows(table='workouts', sql2=' ORDER BY workout_id DESC',
+                                              fetch='one', user_id=user)
+    max_job = db.select_filtered_sorted_rows(table='workouts', sql2=f' AND workout_id <> {workout_id} ORDER BY work DESC',
+                                             fetch='one', user_id=user)
 
-    last_work = 0
-    last_reps = 0
-    for workout in last_workout:
-        last_work += workout[7]
-        last_reps = max(last_reps, workout[4])
-    logger.debug(f'{last_work=}')
-    logger.debug(f'{last_reps=}')
-    all_workouts_voc = {}
-    max_work = False
-    max_reps = False
-    for workout in all_workouts:
-        if workout[0] in all_workouts_voc:
-            if workout[7]:
-                all_workouts_voc[workout[0]]['work'] += workout[7]
-            all_workouts_voc[workout[0]]['reps'] = max(workout[4], all_workouts_voc[workout[0]]['reps'])
-        else:
-            all_workouts_voc[workout[0]] = {'work': 0, 'reps': 0}
-            if workout[7]:
-                all_workouts_voc[workout[0]]['work'] += workout[7]
-            all_workouts_voc[workout[0]]['reps'] = max(workout[4], all_workouts_voc[workout[0]]['reps'])
-    all_workouts_voc.pop(last_workout[0][0], False)
-    for workout in all_workouts_voc:
-        max_work = all_workouts_voc[workout]['work'] < last_work
-        max_reps = all_workouts_voc[workout]['reps'] < last_reps
-    return {'work': max_work, 'reps': exercise if max_reps else max_reps}
+    max_work = last_job['work'] > max_job['work']
+    max_reps = last_max_approach['dynamic'] > max_approach['dynamic']
+
+    # all_workouts = sorted(db.select_rows(table='approaches', fetch='all', tuple_=True, user_id=user),
+    #                       key=lambda a: a[1], reverse=True)
+    # exercise = all_workouts[0][3]
+    # last_workout = sorted(db.select_rows(table='approaches', fetch='all', tuple_=True, user_id=user, exercise_id=exercise,
+    #                                      workout_id=all_workouts[0][1]), key=lambda a: a[4])
+    # all_workouts = sorted(db.select_rows(table='approaches', fetch='all', tuple_=True, user_id=user, exercise_id=exercise),
+    #                       key=lambda a: a[1])
+    #
+    # last_work = 0
+    # last_reps = 0
+    # for workout in last_workout:
+    #     last_work += workout[8]
+    #     last_reps = max(last_reps, workout[5])
+    # logger.debug(f'{last_work=}')
+    # logger.debug(f'{last_reps=}')
+    # all_workouts_voc = {}
+    # max_work = False
+    # max_reps = False
+    # for workout in all_workouts:
+    #     if workout[1] not in all_workouts_voc:
+    #         all_workouts_voc[workout[1]] = {'work': 0, 'reps': 0}
+    #     if workout[8]:
+    #         all_workouts_voc[workout[1]]['work'] += workout[8]
+    #     all_workouts_voc[workout[1]]['reps'] = max(workout[5], all_workouts_voc[workout[1]]['reps'])
+    # all_workouts_voc.pop(last_workout[0][1], False)
+    # for workout in all_workouts_voc:
+    #     max_work = all_workouts_voc[workout]['work'] < last_work
+    #     max_reps = all_workouts_voc[workout]['reps'] < last_reps
+    return {'work': max_work, 'reps': exercise_id if max_reps else max_reps}
 
 
 async def run_timer(data, db: SQLiteDatabase, message, bot):
@@ -149,7 +155,6 @@ async def run_timer(data, db: SQLiteDatabase, message, bot):
         await bot.delete_message(chat_id=message.from_user.id, message_id=message_id)
     data['delete_list'] = []
     msg = await message.answer_animation(
-        # animation=db.select_row(table='multimedia', name='timer', new=True)[3],
         animation=db.select_rows(table='multimedia', fetch='one', name='timer')['file_id'],
         caption='Отдыхайте от 10 секунд до 5 минут...',
         reply_markup=ReplyKeyboardRemove())
@@ -167,27 +172,27 @@ async def save_approach(data, db: SQLiteDatabase, message, approach):
         data['done_workout'].append(int(message.text))
     else:
         data['done_workout'].append(data['new_workout'][approach - 1])
-    user = db.select_rows(table='users_base_long', fetch='one', user_id=message.from_user.id)
+    user = db.select_rows(table='users', fetch='one', user_id=message.from_user.id)
     work = (data['done_workout'][approach - 1] * int(user['weight']) / 100
-            * db.select_rows(table='exercises_base', fetch='one', exercise_id=data['exercise_id'])['work'])
-    arms_work = work * db.select_rows('exercises_muscles_base', fetch='one', exercise_id=data['exercise_id'], muscle_id=0)['load']
-    legs_work = work * db.select_rows('exercises_muscles_base', fetch='one', exercise_id=data['exercise_id'], muscle_id=1)['load']
-    chest_work = work * db.select_rows('exercises_muscles_base', fetch='one', exercise_id=data['exercise_id'], muscle_id=2)['load']
-    abs_work = work * db.select_rows('exercises_muscles_base', fetch='one', exercise_id=data['exercise_id'], muscle_id=3)['load']
-    back_work = work * db.select_rows('exercises_muscles_base', fetch='one', exercise_id=data['exercise_id'], muscle_id=4)['load']
-    db.add_workout_new(workout_id=data['workout_number'], user_id=user['user_id'], exercise_id=data['exercise_id'], approach=approach,
-                       dynamic=data['done_workout'][approach - 1], static=0, date=datetime.utcnow().isoformat(),
-                       work=work, arms=arms_work, legs=legs_work, chest=chest_work, abs_=abs_work, back=back_work)
+            * db.select_rows(table='exercises', fetch='one', exercise_id=data['exercise_id'])['work'])
+    arms_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=0)['load']
+    legs_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=1)['load']
+    chest_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=2)['load']
+    abs_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=3)['load']
+    back_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=4)['load']
+    db.add_approach(workout_id=data['workout_number'], user_id=user['user_id'], exercise_id=data['exercise_id'],
+                    number=approach, dynamic=data['done_workout'][approach - 1], static=0, date=datetime.utcnow().isoformat(),
+                    work=work, arms=arms_work, legs=legs_work, chest=chest_work, abs_=abs_work, back=back_work)
     if approach == len(data['new_workout']):
         work = (sum(data['done_workout']) * int(user['weight']) / 100
-                * db.select_rows(table='exercises_base', fetch='one', exercise_id=data['exercise_id'])['work'])
-        arms_work = work * db.select_rows('exercises_muscles_base', fetch='one', exercise_id=data['exercise_id'], muscle_id=0)['load']
-        legs_work = work * db.select_rows('exercises_muscles_base', fetch='one', exercise_id=data['exercise_id'], muscle_id=1)['load']
-        chest_work = work * db.select_rows('exercises_muscles_base', fetch='one', exercise_id=data['exercise_id'], muscle_id=2)['load']
-        abs_work = work * db.select_rows('exercises_muscles_base', fetch='one', exercise_id=data['exercise_id'], muscle_id=3)['load']
-        back_work = work * db.select_rows('exercises_muscles_base', fetch='one', exercise_id=data['exercise_id'], muscle_id=4)['load']
-        db.add_workout_short(workout_id=data['workout_number'], user_id=user['user_id'], date=datetime.utcnow().isoformat(), approaches=approach,
-                             work=work, arms=arms_work, legs=legs_work, chest=chest_work, abs_=abs_work, back=back_work)
+                * db.select_rows(table='exercises', fetch='one', exercise_id=data['exercise_id'])['work'])
+        arms_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=0)['load']
+        legs_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=1)['load']
+        chest_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=2)['load']
+        abs_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=3)['load']
+        back_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=4)['load']
+        db.add_workout(workout_id=data['workout_number'], user_id=user['user_id'], date=datetime.utcnow().isoformat(),
+                       approaches=approach, work=work, arms=arms_work, legs=legs_work, chest=chest_work, abs_=abs_work, back=back_work)
     return data
 
 
@@ -205,26 +210,28 @@ async def get_multimedia(message: Message, state: FSMContext, db: SQLiteDatabase
         db.update_cell(table='multimedia', cell='file_unique_id',
                        cell_value=message.video.file_unique_id, key='name', key_value=message.caption)
     if message.caption.isdigit():
-        db.update_cell(table='exercises_base', cell='file_id', cell_value=message.animation.file_id,
+        db.update_cell(table='exercises', cell='file_id', cell_value=message.animation.file_id,
                        key='exercise_id', key_value=int(message.caption))
-        db.update_cell(table='exercises_base', cell='file_unique_id', cell_value=message.animation.file_unique_id,
+        db.update_cell(table='exercises', cell='file_unique_id', cell_value=message.animation.file_unique_id,
                        key='exercise_id', key_value=int(message.caption))
 
 
 @router.message(Command(commands='statistics'))
 async def show_statistics(message: Message, state: FSMContext, db: SQLiteDatabase):
-    workouts = db.select_rows(table='workouts_long', fetch='all', tuple_=True, user_id=message.from_user.id)
+    workouts = db.select_rows(table='approaches', fetch='all', user_id=message.from_user.id)
+
     msg = ''
     statistics = {}
     for workout in workouts:
-        if workout[3] == 1:
-            if workout[6]:
-                date = datetime.fromisoformat(workout[6]).strftime('%d-%m-%y')
+        if workout['number'] == 1:
+            if workout['date']:
+                date = datetime.fromisoformat(workout['date']).strftime('%d.%m.%y')
             else:
                 date = ''
-            statistics[workout[0]] = str(workout[0]) + ': ' + date + ' #' + str(workout[2]) + '-' + str(workout[4])
+            statistics[workout['workout_id']] = (str(workout['workout_id']) + ': ' + date + ' #' + str(workout['exercise_id'])
+                                                 + '-' + str(workout['dynamic']))
         else:
-            statistics[workout[0]] += '-' + str(workout[4])
+            statistics[workout['workout_id']] += '-' + str(workout['dynamic'])
     for workout in statistics:
         msg += statistics[workout] + '\n'
     await message.answer(text=msg)
@@ -317,7 +324,7 @@ async def enter_bdate_03new(message: Message, bot: Bot, state: FSMContext, db: S
     data = await state.get_data()
     if 'delete_list' not in data:
         data['delete_list'] = []
-    db.update_cell(table='users_base_long', cell='birth_date', cell_value=data['date'],
+    db.update_cell(table='users', cell='birth_date', cell_value=data['date'],
                    key='user_id', key_value=message.from_user.id)
     msg = await message.answer(text='Данные сохранены')
     data['delete_list'].append(message.message_id)
@@ -376,11 +383,11 @@ async def enter_data_06new(message: Message, bot: Bot, state: FSMContext, db: SQ
     data = await state.get_data()
     if 'delete_list' not in data:
         data['delete_list'] = []
-    db.update_cell(table='users_base_long', cell='sex', cell_value=data['user_data'][0],
+    db.update_cell(table='users', cell='sex', cell_value=data['user_data'][0],
                    key='user_id', key_value=message.from_user.id)
-    db.update_cell(table='users_base_long', cell='height', cell_value=data['user_data'][1],
+    db.update_cell(table='users', cell='height', cell_value=data['user_data'][1],
                    key='user_id', key_value=message.from_user.id)
-    db.update_cell(table='users_base_long', cell='weight', cell_value=data['user_data'][2],
+    db.update_cell(table='users', cell='weight', cell_value=data['user_data'][2],
                    key='user_id', key_value=message.from_user.id)
     msg = await message.answer(text='Данные сохранены')
     data['delete_list'].append(message.message_id)
@@ -426,9 +433,8 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase,
 
     data['exercise_id'] = await auto_choose_exercise(message.from_user.id, db, data['black_list'])
     logger.debug(f'{data["exercise_id"]=}')
-    exercise = db.select_rows(table='exercises_base', fetch='one', exercise_id=data['exercise_id'])
+    exercise = db.select_rows(table='exercises', fetch='one', exercise_id=data['exercise_id'])
     if exercise['file_id']:
-        # msg = await message.edit_media()
         msg = await message.answer_animation(
             animation=exercise['file_id'],
             caption=f'{exercise["exercise_id"]} {exercise["name"]}',
@@ -457,7 +463,7 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase)
         data['delete_list'].pop() if data['delete_list'] else ''
     else:
         exercise_id = int(message.text)
-        exercise = db.select_rows(table='exercises_base', fetch='one', exercise_id=exercise_id)
+        exercise = db.select_rows(table='exercises', fetch='one', exercise_id=exercise_id)
         if exercise['file_id']:
             await message.answer_animation(
                 animation=exercise['file_id'],
@@ -466,17 +472,17 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase)
         else:
             await message.answer(text=f'{exercise["exercise_id"]} {exercise["name"]}', reply_markup=ReplyKeyboardRemove())
 
-    user = db.select_rows(table='users_base_long', fetch='one', user_id=message.from_user.id)
+    user = db.select_rows(table='users', fetch='one', user_id=message.from_user.id)
     time_start = datetime.utcnow().timestamp()
-    workout_number = db.select_table(table='workouts_long')[-1]['workout_id'] + 1
-    last_workouts = db.select_last_workout_new(user_id=user['user_id'], exercise_id=exercise_id, tuple_=True)
+    workout_number = db.select_table(table='approaches')[-1]['workout_id'] + 1
+    last_workouts = db.select_last_workout(user_id=user['user_id'], exercise_id=exercise_id, tuple_=True)
 
     if last_workouts:
         for i in range(5 - len(last_workouts)):
-            last_workouts.append((last_workouts[0][0], last_workouts[0][1], last_workouts[0][2],
-                                  len(last_workouts) + i, 0, 0, last_workouts[0][2], 0, 0, 0, 0, 0, 0))
-        new_workout = (str(last_workouts[0][4]) + ' ' + str(last_workouts[1][4]) + ' ' + str(last_workouts[2][4]) +
-                       ' ' + str(last_workouts[3][4]) + ' ' + str(last_workouts[4][4]))
+            last_workouts.append((last_workouts[0][0] + 1, last_workouts[0][1], last_workouts[0][2], last_workouts[0][3],
+                                  len(last_workouts) + i, 0, 0, last_workouts[0][7], 0, 0, 0, 0, 0, 0))
+        new_workout = (str(last_workouts[0][5]) + ' ' + str(last_workouts[1][5]) + ' ' + str(last_workouts[2][5]) +
+                       ' ' + str(last_workouts[3][5]) + ' ' + str(last_workouts[4][5]))
         new_workout = generate_new_split(new_workout)
     else:
         new_workout = '1 1 1 1 1'
@@ -516,9 +522,8 @@ async def start_trener(message: Message, state: FSMContext, db: SQLiteDatabase, 
                                reply_markup=ReplyKeyboardRemove())
     data['delete_list'].append(msg.message_id)
 
-    await asyncio.sleep(2)
-    # exercises_table = db.select_all_table('exercises_base', new=True)
-    exercises_table = db.select_table('exercises_base')
+    await asyncio.sleep(3)
+    exercises_table = db.select_table('exercises')
     if exercises_table:
         captions = []
         for exercise in exercises_table:
@@ -604,7 +609,7 @@ async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase, 
 @router.message(F.text.lower().strip() == 'нет', StateFilter(FSMTrener.workout_end))
 async def end_workout(message: Message, bot: Bot, state: FSMContext, db: SQLiteDatabase):
     data = await state.get_data()
-    db.update_cell(table='users_base_long', cell='trener_sub', cell_value=datetime.utcnow().isoformat(),
+    db.update_cell(table='users', cell='coach_sub', cell_value=datetime.utcnow().isoformat(),
                    key='user_id', key_value=message.from_user.id)
     msg = await message.answer(text='До новых встреч!', reply_markup=ReplyKeyboardRemove())
     data['delete_list'].append(msg.message_id)
@@ -618,7 +623,7 @@ async def end_workout(message: Message, bot: Bot, state: FSMContext, db: SQLiteD
 
 @router.message(F.text.lower().strip() == 'напомнить через неделю')
 async def remind_after_week(message: Message, bot: Bot, state: FSMContext, db: SQLiteDatabase):
-    db.update_cell(table='users_base_long', cell='trener_sub', cell_value=datetime.utcnow().isoformat(),
+    db.update_cell(table='users', cell='coach_sub', cell_value=datetime.utcnow().isoformat(),
                    key='user_id', key_value=message.from_user.id)
     await message.answer(text='Добавили вас в рассылку')
 
