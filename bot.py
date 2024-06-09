@@ -90,16 +90,16 @@ async def main():
     try:
         logger.info('Создаём подключение к базе данных')
         # разовые коррекции БД:
-        db.change_repeated_approaches()
-        db.create_table_users()
-        db.create_table_exercises()
-        db.create_table_exercises_users()
-        db.create_table_muscles()
-        db.create_table_exercises_muscles()
-        db.create_table_workouts()
-        db.create_table_approaches()
-        db.create_table_energy()
-        db.create_table_weight()
+        # db.change_repeated_approaches()
+        # db.create_table_users()
+        # db.create_table_exercises()
+        # db.create_table_exercises_users()
+        # db.create_table_muscles()
+        # db.create_table_exercises_muscles()
+        # db.create_table_workouts()
+        # db.create_table_approaches()
+        # db.create_table_energy()
+        # db.create_table_weight()
         # db.add_sex_height()
 
     except Exception as e:

@@ -219,10 +219,16 @@ async def get_multimedia(message: Message, state: FSMContext, db: SQLiteDatabase
 @router.message(Command(commands='statistics'))
 async def show_statistics(message: Message, state: FSMContext, db: SQLiteDatabase):
     workouts = db.select_rows(table='approaches', fetch='all', user_id=message.from_user.id)
-
+    logger.debug(f'{workouts=}')
     msg = ''
     statistics = {}
     for workout in workouts:
+        logger.debug(f'{workout=}')
+        logger.debug(f'{workout["number"]=}')
+        logger.debug(f'{workout["date"]=}')
+        logger.debug(f'{workout["workout_id"]=}')
+        logger.debug(f'{workout["exercise_id"]=}')
+        logger.debug(f'{workout["dynamic"]=}')
         if workout['number'] == 1:
             if workout['date']:
                 date = datetime.fromisoformat(workout['date']).strftime('%d.%m.%y')
