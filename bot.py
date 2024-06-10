@@ -90,7 +90,15 @@ async def main():
     try:
         logger.info('Создаём подключение к базе данных')
         # разовые коррекции БД:
-        # db.change_repeated_approaches()
+        db.delete_table('exercises_equipment_base')
+        # db.delete_table('energy_balance')
+        # db.delete_table('equipment_base')
+        # db.delete_table('exercises_base')
+        # db.delete_table('exercises_muscles_base')
+        # db.delete_table('muscles_base')
+        # db.delete_table('workouts_long')
+        # db.delete_table('workouts_short')
+
         # db.create_table_users()
         # db.create_table_exercises()
         # db.create_table_exercises_users()

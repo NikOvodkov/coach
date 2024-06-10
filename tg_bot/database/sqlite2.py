@@ -134,8 +134,8 @@ class SQLiteDatabase:
         '''
         self.execute(sql, commit=True)
 
-    def add_exercise_user(self, user_id: int, exercise_id: int, list_: int, weighting: int, arms: float, legs: float,
-                          chest: float, abs_: float, back: float):
+    def add_exercise_user(self, user_id: int, exercise_id: int, list_: int = None, weighting: int = 0, arms: float = None,
+                          legs: float = None, chest: float = None, abs_: float = None, back: float = None):
         sql = ('INSERT INTO exercises_users (user_id, exercise_id, list, weighting, arms, legs, chest, abs, back) '
                'VALUES(?,?,?,?,?,?,?,?,?)')
         parameters = (user_id, exercise_id, list_, weighting, arms, legs, chest, abs_, back)
@@ -319,17 +319,15 @@ class SQLiteDatabase:
         sql = f'UPDATE {table} SET {cell}=? WHERE {key}=? '
         return self.execute(sql, parameters=(cell_value, key_value), commit=True)
 
+    def update_cell_new(self, table, cell, cell_value, **kwargs):
+        sql = f'UPDATE {table} SET {cell}=? WHERE '
+        sql, parameters = self.format_args(sql, kwargs)
+        return self.execute(sql, (cell_value, *parameters), commit=True)
+
     def filter(self, table, fetch, tuple_=False, **kwargs):
         sql = f'SELECT * FROM {table} WHERE '
         sql, parameters = self.format_args(sql, kwargs)
         return self.execute(sql, parameters, fetch=fetch, tuple_=tuple_)
-
-    '''
-    SELECT column_name
-FROM table_name
-ORDER BY LENGTH(column_name) DESC
-LIMIT 1;
-    '''
 
     ##############################################################################################
 
