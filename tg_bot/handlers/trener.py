@@ -117,7 +117,10 @@ async def award_user(user, db: SQLiteDatabase):
 
     max_work = last_job['work'] > max_job['work']
     max_reps = last_max_approach['dynamic'] > max_approach['dynamic']
-
+    logger.debug(f'{last_job["work"]=}')
+    logger.debug(f'{max_job["work"]=}')
+    logger.debug(f'{last_max_approach["dynamic"]=}')
+    logger.debug(f'{max_approach["dynamic"]=}')
     # all_workouts = sorted(db.select_rows(table='approaches', fetch='all', tuple_=True, user_id=user),
     #                       key=lambda a: a[1], reverse=True)
     # exercise = all_workouts[0][3]
@@ -584,6 +587,7 @@ async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase, 
                               f"Рекомендованный перерыв между тренировками одного упражнения - от 2 до 7 дней. "
                               f"Если перерыв будет более 7 дней, прогресс может отсутствовать.")
     awards = await award_user(message.from_user.id, db)
+    logger.debug(f'{awards=}')
     if awards['reps']:
         if awards['work']:
             msg = await message.answer(
