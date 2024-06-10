@@ -223,13 +223,9 @@ async def show_statistics(message: Message, state: FSMContext, db: SQLiteDatabas
     msg = ''
     statistics = {}
     for workout in workouts:
-        logger.debug(f'{workout=}')
-        logger.debug(f'{workout["number"]=}')
-
-        logger.debug(f'{workout["workout_id"]=}')
-        logger.debug(f'{workout["exercise_id"]=}')
-        logger.debug(f'{workout["dynamic"]=}')
-        if workout['number'] == 1:
+        if workout['workout_id'] in statistics:
+            statistics[workout['workout_id']] += '-' + str(workout['dynamic'])
+        else:
             if workout['date']:
                 logger.debug(f'{workout["date"]=}')
                 date = datetime.fromisoformat(workout['date']).strftime('%d.%m.%y')
@@ -237,8 +233,6 @@ async def show_statistics(message: Message, state: FSMContext, db: SQLiteDatabas
                 date = ''
             statistics[workout['workout_id']] = (str(workout['workout_id']) + ': ' + date + ' #' + str(workout['exercise_id'])
                                                  + '-' + str(workout['dynamic']))
-        else:
-            statistics[workout['workout_id']] += '-' + str(workout['dynamic'])
     logger.debug(f'{statistics=}')
     for workout in statistics:
         msg += statistics[workout] + '\n'
