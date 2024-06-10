@@ -533,7 +533,8 @@ async def start_trener(message: Message, state: FSMContext, db: SQLiteDatabase, 
     if exercises_table:
         captions = []
         for exercise in exercises_table:
-            exercise_list = db.select_rows(table='exercises_users', fetch='one', exercise_id=exercise['exercise_id'])
+            exercise_list = db.select_rows(table='exercises_users', fetch='one',
+                                           exercise_id=exercise['exercise_id'], user_id=message.from_user.id)
             logger.debug(f'{exercise_list=}')
             if exercise_list:
                 if exercise_list['list'] == 1:
@@ -582,7 +583,8 @@ async def add_white_list(message: Message, state: FSMContext, db: SQLiteDatabase
     else:
         db.add_exercise_user(user_id=message.from_user.id, exercise_id=exercise_id)
     msg = await message.answer(text='Данные сохранены.',
-                               reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Обновить список')]]))
+                               reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Обновить список')]],
+                                                                one_time_keyboard=True, resize_keyboard=True))
     data['delete_list'].append(msg.message_id)
     await state.update_data(delete_list=data['delete_list'])
 
@@ -609,7 +611,8 @@ async def add_white_list(message: Message, state: FSMContext, db: SQLiteDatabase
     else:
         db.add_exercise_user(user_id=message.from_user.id, exercise_id=exercise_id, list_=1)
     msg = await message.answer(text='Данные сохранены, упражнение будет предлагаться чаще.',
-                               reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Обновить список')]]))
+                               reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Обновить список')]],
+                                                                one_time_keyboard=True, resize_keyboard=True))
     data['delete_list'].append(msg.message_id)
     await state.update_data(delete_list=data['delete_list'])
 
@@ -635,7 +638,8 @@ async def add_white_list(message: Message, state: FSMContext, db: SQLiteDatabase
     else:
         db.add_exercise_user(user_id=message.from_user.id, exercise_id=exercise_id, list_=0)
     msg = await message.answer(text='Данные сохранены, упражнение не будет предлагаться.',
-                               reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Обновить список')]]))
+                               reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Обновить список')]],
+                                                                one_time_keyboard=True, resize_keyboard=True))
     data['delete_list'].append(msg.message_id)
     await state.update_data(delete_list=data['delete_list'])
 
