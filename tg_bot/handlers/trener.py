@@ -2,6 +2,7 @@ import asyncio
 import os
 from datetime import timedelta, datetime
 from pathlib import Path
+from typing import Any
 
 import dateutil
 from aiogram import Router, F, types, Bot
@@ -16,6 +17,7 @@ from tg_bot.database.sqlite2 import SQLiteDatabase
 from tg_bot.filters.db import MyUserDbFilter
 from tg_bot.keyboards.trener import yesno, ready
 from tg_bot.lexicon.life_calendar import LEXICON_RU
+from tg_bot.services.ufuncs import clear_delete_list
 from tg_bot.states.trener import FSMTrener
 from tg_bot.utils.life_calendar import generate_image_calendar
 from tg_bot.states.life_calendar import FSMLifeCalendar
@@ -25,14 +27,11 @@ from tg_bot.utils.trener import generate_new_split, Split
 router = Router()
 
 
-async def clear_delete_list(delete_list, bot, user_id):
-    logger.debug(f'{delete_list=}')
-    for message_id in set(delete_list):
-        await bot.delete_message(chat_id=user_id, message_id=message_id)
-    return []
+async def list_exercise_user(user_id: int, db: SQLiteDatabase, exercise_id: int) -> int:
+    return db.select_rows('exercises_users', fetch='one', uder_id=user_id, exercise_id=exercise_id)['list']
 
 
-async def auto_choose_exercise(user, db: SQLiteDatabase, black_list) -> int:
+async def auto_choose_exercise(user_id, db: SQLiteDatabase, black_list) -> int:
     """
     1. Находим в истории тренировку с максимальной работой за месяц, добавляем 10%, получаем норму работы на новую тренировку.
     2. Суммируем недельную работу по каждой мышце, выясняем у какой меньше всего, будем прорабатывать её.
@@ -40,6 +39,7 @@ async def auto_choose_exercise(user, db: SQLiteDatabase, black_list) -> int:
     истории тренировок.
     4. Проводим тренировку с найденным упражнением.
     5. Если осталась часть нормы работы, повторяем с пункта 2.
+    :param user_id:
     :param black_list:
     :param user:
     :param db:
@@ -48,7 +48,7 @@ async def auto_choose_exercise(user, db: SQLiteDatabase, black_list) -> int:
     """
     month_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
     week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
-    all_workouts = db.select_rows(table='workouts', fetch='all', tuple_=True, user_id=user)
+    all_workouts = db.select_rows(table='workouts', fetch='all', tuple_=True, user_id=user_id)
     all_workouts = sorted(all_workouts, key=lambda a: 0 if a[4] is None else a[4], reverse=True)
     max_job = 0
     for workout in all_workouts:
@@ -58,7 +58,7 @@ async def auto_choose_exercise(user, db: SQLiteDatabase, black_list) -> int:
                 break
     logger.debug(f'{max_job=}')
 
-    all_workouts = db.select_rows(table='approaches', fetch='all', tuple_=True, user_id=user)
+    all_workouts = db.select_rows(table='approaches', fetch='all', tuple_=True, user_id=user_id)
     all_workouts = sorted(all_workouts, key=lambda a: '0' if a[7] is None else a[7], reverse=True)
     work = {'Руки': 0, 'Ноги': 0, 'Грудь': 0, 'Живот': 0, 'Спина': 0}
     for workout in all_workouts:
@@ -75,11 +75,11 @@ async def auto_choose_exercise(user, db: SQLiteDatabase, black_list) -> int:
     exercises_voc = {}
     for exercise in exercises:
         exercises_voc[exercise[0]] = [0, exercise[4]]
-    exercises = db.select_rows(table='approaches', fetch='all', tuple_=True, user_id=user)
+    exercises = db.select_rows(table='approaches', fetch='all', tuple_=True, user_id=user_id)
     for exercise in exercises:
         exercises_voc[exercise[3]][0] += 1
     logger.debug(f'{black_list=}')
-    blocked_exercises = db.select_rows(table='exercises_users', fetch='all', user_id=user, list=0)
+    blocked_exercises = db.select_rows(table='exercises_users', fetch='all', user_id=user_id, list=0)
     for exercise in blocked_exercises:
         if exercise['exercise_id'] not in black_list:
             black_list.append(exercise['exercise_id'])
@@ -115,11 +115,14 @@ async def award_user(user, db: SQLiteDatabase):
                                                   sql2=f' AND workout_id <> {workout_id} ORDER BY dynamic DESC',
                                                   fetch='one', user_id=user,
                                                   exercise_id=exercise_id)
+    if not max_approach:
+        max_approach = {'dynamic': 0}
     last_job = db.select_filtered_sorted_rows(table='workouts', sql2=' ORDER BY workout_id DESC',
                                               fetch='one', user_id=user)
     max_job = db.select_filtered_sorted_rows(table='workouts', sql2=f' AND workout_id <> {workout_id} ORDER BY work DESC',
                                              fetch='one', user_id=user)
-
+    if not max_job:
+        max_job = {'work': 0}
     max_work = last_job['work'] > max_job['work']
     max_reps = last_max_approach['dynamic'] > max_approach['dynamic']
     logger.debug(f'{last_job["work"]=}')
@@ -250,7 +253,8 @@ async def show_statistics(message: Message, state: FSMContext, db: SQLiteDatabas
 
 @router.message(F.text.lower().strip() == 'запустить тренировку')
 @router.message(Command(commands='fitness'), MyUserDbFilter(column='birth_date'), MyUserDbFilter(column='sex'))
-async def warmup_07new(message: Message, state: FSMContext, db: SQLiteDatabase):
+async def warmup_07new(message: Message, state: FSMContext, db: SQLiteDatabase, cell: Any):
+    logger.debug(f'{cell=}')
     if message.text == '/fitness':
         await state.clear()
     data = await state.get_data()

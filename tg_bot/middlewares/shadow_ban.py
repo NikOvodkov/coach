@@ -24,10 +24,11 @@ class ShadowBanMiddleware(BaseMiddleware):
         # await event.message.answer(f'тест ансвера {db_user[9]}')
         # await event.message.forward(config.tg_bot.admin_ids[0])
         logger.debug('Enter shadow_ban')
-        if event.message and event.message.from_user.id != config.tg_bot.admin_ids[0]:
-            await aiobot.send_message(config.tg_bot.admin_ids[0],
-                                      text=f'Пользователь {event.message.from_user.id} {event.message.from_user.username} '
-                                           f'общается с ботом')
+        # Ниже 4 строки - бот присылает уведомление, если кто-то с ним общается
+        # if event.message and event.message.from_user.id != config.tg_bot.admin_ids[0]:
+        #     await aiobot.send_message(config.tg_bot.admin_ids[0],
+        #                               text=f'Пользователь {event.message.from_user.id} {event.message.from_user.username} '
+        #                                    f'общается с ботом')
         logger.debug('AfterIF shadow_ban')
         if db_user is not None:
             db_user = db.select_rows(table='users', fetch='one', user_id=tg_user.id)

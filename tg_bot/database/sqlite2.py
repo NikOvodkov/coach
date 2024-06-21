@@ -26,10 +26,17 @@ class SQLiteDatabase:
         connection.set_trace_callback(logger.debug)
         cursor = connection.cursor()
         data = None
-        if script:
-            cursor.executescript(sql)
-        else:
-            cursor.execute(sql, parameters)
+        try:
+            if script:
+                cursor.executescript(sql)
+            else:
+                cursor.execute(sql, parameters)
+        except sqlite3.Error as er:
+            logger.debug('____________ОПЕРАЦИЯ НЕ ВЫПОЛНЕНА!!!_________')
+            logger.debug(er.sqlite_errorcode)  # Prints 275
+            logger.debug(er.sqlite_errorname)  # Prints SQLITE_CONSTRAINT_CHECK
+            connection.close()
+            return
         if commit:
             connection.commit()
         if fetch == 'one':
@@ -99,9 +106,11 @@ class SQLiteDatabase:
         CREATE TABLE IF NOT EXISTS exercises (
                 exercise_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                 user_id INTEGER REFERENCES users (user_id),  /* id пользователя, внёсшего упражнение в базу */
-                type INTEGER,  /* 0-динамика/1-статика/2-разминка/3-тренировка/4-таймер */
+                type INTEGER, /*1-динамика/2-статика/3-разминка/4-заминка/5-тренировка/0-таймер*/
                 name VARCHAR(255) NOT NULL,  /* наименование упражнения (ёмкое, чёткое, подробное, но компактное) */
                 description VARCHAR,  /* подробное описание */
+                description_text_link VARCHAR,  /* ссылка на подробное описание упражнения */
+                description_video_link VARCHAR,  /* ссылка на подробное описание упражнения */
                 work REAL,  /* выполняемая в упражнении работа за 1 повторение на 1 кг веса спортсмена */
                 file_id VARCHAR(255),
                 file_unique_id VARCHAR(255)
@@ -111,11 +120,40 @@ class SQLiteDatabase:
         '''
         self.execute(sql, commit=True, script=True)
 
-    def add_exercise(self, exercise_id: int, user_id: int, type_: int, name: str, description: str = None,
-                     work: float = None, file_id: str = None, file_unique_id: str = None):
-        sql = ('INSERT INTO exercises (exercise_id, user_id, type, name, description, work, file_id, file_unique_id) '
-               'VALUES(?,?,?,?,?,?,?,?)')
-        parameters = (exercise_id, user_id, type_, name, description, work, file_id, file_unique_id)
+    def add_exercise(self, user_id: int, type_: int, name: str, description: str = None, description_text_link: str = None,
+                     description_video_link: str = None, work: float = None, file_id: str = None, file_unique_id: str = None):
+        sql = ('INSERT INTO exercises (user_id, type, name, description, '
+               'description_text_link, description_video_link, work, file_id, file_unique_id) '
+               'VALUES(?,?,?,?,?,?,?,?,?)')
+        parameters = (user_id, type_, name, description, description_text_link, description_video_link,
+                      work, file_id, file_unique_id)
+        self.execute(sql, parameters=parameters, commit=True)
+
+    def create_table_materials(self):  # таблица содержит материалы, предложенные на модерацию
+        sql = '''
+        CREATE TABLE IF NOT EXISTS materials (
+                material_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                user_id INTEGER REFERENCES users (user_id) NOT NULL,  /* id пользователя, предложившего материал */
+                type INTEGER NOT NULL, /*1-динамика/2-статика/3-разминка/4-заминка/5-тренировка/0-таймер*/
+                exercise_id INTEGER REFERENCES exercises (exercise_id),  /* id редактируемого упражнения */
+                name VARCHAR(255),  /* наименование упражнения (ёмкое, чёткое, подробное, но компактное) */
+                description VARCHAR,  /* короткое текстовое описание упражнения */
+                description_text_link VARCHAR,  /* ссылка на подробное описание упражнения */
+                description_video_link VARCHAR,  /* ссылка на подробное описание упражнения */
+                file_id VARCHAR(255),
+                file_unique_id VARCHAR(255),
+                date VARCHAR(31) /* дата запроса модерации */
+                );
+        '''
+        self.execute(sql, commit=True)
+
+    def add_material(self, user_id: int, type_: int, exercise_id: int = None, name: str = None, description: str = None,
+                     text: str = None, video: str = None, file_id: str = None, file_unique_id: str = None, date: str = None):
+        sql = ('INSERT INTO materials (user_id, type, exercise_id, name, description, '
+               'description_text_link, description_video_link, file_id, file_unique_id, date) '
+               'VALUES(?,?,?,?,?,?,?,?,?,?)')
+        parameters = (user_id, type_, exercise_id, name, description, text, video, file_id, file_unique_id, date)
+        logger.debug(f'{sql=} {parameters=}')
         self.execute(sql, parameters=parameters, commit=True)
 
     def create_table_exercises_users(self):  # таблица содержит ссылки на личные настроенные базы упражнений пользователей
@@ -301,6 +339,11 @@ class SQLiteDatabase:
     def count_rows(self, table):
         return self.execute(f'SELECT COUNT(*) FROM {table};', fetch='one')
 
+    def delete_rows(self, table, **kwargs):
+        sql = f'DELETE FROM {table} WHERE '
+        sql, parameters = self.format_args(sql, kwargs)
+        return self.execute(sql, parameters, commit=True)
+
     def select_rows(self, table, fetch, tuple_=False, **kwargs):
         sql = f'SELECT * FROM {table} WHERE '
         sql, parameters = self.format_args(sql, kwargs)
@@ -323,6 +366,12 @@ class SQLiteDatabase:
         sql = f'UPDATE {table} SET {cell}=? WHERE '
         sql, parameters = self.format_args(sql, kwargs)
         return self.execute(sql, (cell_value, *parameters), commit=True)
+
+    def update_cells(self, table, cells, **kwargs):
+        sql = ', '.join([f'{cell}={cells[cell]}' for cell in cells])
+        sql = f'UPDATE {table} SET {sql} WHERE '
+        sql, parameters = self.format_args(sql, kwargs)
+        return self.execute(sql, parameters, commit=True)
 
     def filter(self, table, fetch, tuple_=False, **kwargs):
         sql = f'SELECT * FROM {table} WHERE '
@@ -438,3 +487,13 @@ class SQLiteDatabase:
         ALTER TABLE users ADD sex VARCHAR(1);
         '''
         self.execute(sql, commit=True, script=True)
+
+    def add_descriptions(self):
+        sql = '''
+        ALTER TABLE exercises ADD description_text_link VARCHAR;
+        ALTER TABLE exercises ADD description_video_link VARCHAR;
+        '''
+        self.execute(sql, commit=True, script=True)
+
+    def set_type_1(self):
+        self.execute(sql='UPDATE exercises SET type = 1;', commit=True)

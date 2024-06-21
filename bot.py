@@ -12,7 +12,7 @@ from tg_bot.config import load_config, Config
 from tg_bot.daemons.life_calendar import send_life_calendar
 
 from tg_bot.database.sqlite2 import SQLiteDatabase
-from tg_bot.handlers import a_user, a_other, a_admin, atomy, gsheet, life_calendar, update_db_sqlite, trener, trener_add, energy_balance
+from tg_bot.handlers import a_user, a_other, a_admin, atomy, gsheet, life_calendar, update_db_sqlite, trener, trener_add, energy_balance, trener_moderate
 from tg_bot.middlewares.shadow_ban import ShadowBanMiddleware
 from tg_bot.middlewares.throttling import ThrottlingMiddleware
 from tg_bot.services.setting_commands import force_reset_all_commands, set_default_commands, set_admins_commands, set_all_groups_commands, set_all_chat_admins_commands, set_all_private_commands
@@ -90,8 +90,10 @@ async def main():
     try:
         logger.info('Создаём подключение к базе данных')
         # разовые коррекции БД:
-        db.delete_table('energy_balance')
-        # db.delete_table('equipment_base')
+        db.delete_table('equipment_base')
+        db.set_type_1()
+        db.create_table_materials()
+        db.add_descriptions()
         # db.delete_table('exercises_base')
         # db.delete_table('exercises_muscles_base')
         # db.delete_table('muscles_base')
@@ -135,6 +137,8 @@ async def main():
     # Регистриуем роутеры
     logger.info('Подключаем роутеры')
     dp.include_routers(a_admin.router,
+                       trener_moderate.router,
+                       trener_add.router,
                        update_db_sqlite.router,
                        energy_balance.router,
                        a_user.router,
@@ -142,7 +146,6 @@ async def main():
                        gsheet.router,
                        life_calendar.router,
                        trener.router,
-                       trener_add.router,
                        a_other.router)
     # Регистрируем миддлвари
     logger.info('Подключаем миддлвари')
