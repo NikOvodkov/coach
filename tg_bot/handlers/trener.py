@@ -203,7 +203,7 @@ async def save_approach(data, db: SQLiteDatabase, message, approach):
         abs_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=3)['load']
         back_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=4)['load']
         db.add_workout(workout_id=data['workout_number'], user_id=user['user_id'], date=datetime.utcnow().isoformat(),
-                       approaches=approach, work=work, arms=arms_work, legs=legs_work, chest=chest_work, abs_=abs_work, back=back_work)
+                       exercise_id=data['exercise_id'], approaches=approach, work=work, arms=arms_work, legs=legs_work, chest=chest_work, abs_=abs_work, back=back_work)
     return data
 
 
@@ -451,12 +451,12 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase,
     if exercise['file_id']:
         msg = await message.answer_animation(
             animation=exercise['file_id'],
-            caption=f'{exercise["exercise_id"]} {exercise["name"]}',
+            caption=f'{exercise["exercise_id"]}. {exercise["name"]}',
             reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Заменить"), KeyboardButton(text="Оставить")],
                                                        [KeyboardButton(text="Выбрать из списка")]],
                                              one_time_keyboard=True, resize_keyboard=True))
     else:
-        msg = await message.answer(text=f'{exercise["exercise_id"]} {exercise["name"]}',
+        msg = await message.answer(text=f'{exercise["exercise_id"]}. {exercise["name"]}',
                                    reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Заменить"),
                                                                                KeyboardButton(text="Оставить")],
                                                                               [KeyboardButton(text="Выбрать из списка")]],
@@ -481,10 +481,10 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase)
         if exercise['file_id']:
             await message.answer_animation(
                 animation=exercise['file_id'],
-                caption=f'{exercise["exercise_id"]} {exercise["name"]}',
+                caption=f'{exercise["exercise_id"]}. {exercise["name"]}',
                 reply_markup=ReplyKeyboardRemove())
         else:
-            await message.answer(text=f'{exercise["exercise_id"]} {exercise["name"]}', reply_markup=ReplyKeyboardRemove())
+            await message.answer(text=f'{exercise["exercise_id"]}. {exercise["name"]}', reply_markup=ReplyKeyboardRemove())
 
     user = db.select_rows(table='users', fetch='one', user_id=message.from_user.id)
     time_start = datetime.utcnow().timestamp()

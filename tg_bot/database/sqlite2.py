@@ -82,7 +82,12 @@ class SQLiteDatabase:
                 coach_sub VARCHAR(255),  /* дата следующего напоминания тренера, либо None */
                 weight INTEGER,
                 height INTEGER,
-                sex VARCHAR(1)
+                sex VARCHAR(1),
+                arms_level REAL,
+                legs_level REAL,
+                chest_level REAL,
+                abs_level REAL,
+                back_level REAL
                 );
          INSERT OR IGNORE INTO users (user_id, name, email, status, latitude, longitude, time_zone, birth_date, life_date,
                                       life_calendar_sub, coach_sub, weight, height, sex)
@@ -94,11 +99,14 @@ class SQLiteDatabase:
     def add_user(self, user_id: int, name: str, email: str = None, status: int = 1,
                  latitude: float = None, longitude: float = None, time_zone: int = None,
                  birth_date: str = None, life_date: str = None, life_calendar_sub: str = None,
-                 trener_sub: str = None, weight: int = None):
+                 trener_sub: str = None, weight: int = None, arms_level: float = None, legs_level: float = None,
+                 chest_level: float = None, abs_level: float = None, back_level: float = None):
         sql = ('INSERT OR IGNORE INTO users(user_id, name, email, status, latitude, longitude, time_zone, '
-               'birth_date, life_date, life_calendar_sub, trener_sub, weight) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+               'birth_date, life_date, life_calendar_sub, trener_sub, weight,'
+               'arms_level, legs_level, chest_level, abs_level, back_level) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
         parameters = (user_id, name, email, status, latitude, longitude, time_zone,
-                      birth_date, life_date, life_calendar_sub, trener_sub, weight)
+                      birth_date, life_date, life_calendar_sub, trener_sub, weight,
+                      arms_level, legs_level, chest_level, abs_level, back_level)
         self.execute(sql, parameters=parameters, commit=True)
 
     def create_table_exercises(self):  # таблица содержит неповторяющийся список уникальных упражнений
@@ -205,6 +213,7 @@ class SQLiteDatabase:
                 exercise_name VARCHAR(255) REFERENCES exercises (name), /* название упражнения */
                 muscle_id INTEGER REFERENCES muscles (muscle_id),
                 muscle_name VARCHAR(255) REFERENCES muscles (name), /* имя мышечной группы */
+                level REAL, /* уровень сложности упражнения */
                 load REAL /* относительная загрузка мышечной группы в упражнении относительно всех мышц */
                 );
         INSERT OR IGNORE INTO exercises_muscles (exercise_id, exercise_name, muscle_id, muscle_name, load)
@@ -212,10 +221,11 @@ class SQLiteDatabase:
         '''
         self.execute(sql, commit=True, script=True)
 
-    def add_exercises_muscles(self, exercise_id: int, exercise_name: str, muscle_id: int, muscle_name: str, load: float):
-        sql = ('INSERT OR IGNORE INTO exercises_muscles (exercise_id, exercise_name, muscle_id, muscle_name, load)'
-               ' VALUES(?,?,?,?,?)')
-        parameters = (exercise_id, exercise_name, muscle_id, muscle_name, load)
+    def add_exercises_muscles(self, exercise_id: int, exercise_name: str, muscle_id: int, muscle_name: str,
+                              level: float, load: float):
+        sql = ('INSERT OR IGNORE INTO exercises_muscles (exercise_id, exercise_name, muscle_id, muscle_name, level, load)'
+               ' VALUES(?,?,?,?,?,?)')
+        parameters = (exercise_id, exercise_name, muscle_id, muscle_name, level, load)
         self.execute(sql, parameters=parameters, commit=True)
 
     def create_table_workouts(self):
@@ -224,6 +234,7 @@ class SQLiteDatabase:
                 workout_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER REFERENCES users (user_id),
                 date VARCHAR(31),
+                exercise_id INTEGER REFERENCES exercises (exercise_id),
                 approaches INTEGER,
                 work REAL,
                 arms REAL,
@@ -237,11 +248,11 @@ class SQLiteDatabase:
         '''
         self.execute(sql, commit=True, script=True)
 
-    def add_workout(self, workout_id: int, user_id: int, date: str, approaches: int, work: float, arms: float, legs: float,
-                    chest: float, abs_: float, back: float):
-        sql = (f'INSERT OR IGNORE INTO workouts (workout_id, user_id, date, approaches, work, arms, legs, chest, abs, back) '
-               f'VALUES(?,?,?,?,?,?,?,?,?,?)')
-        parameters = (workout_id, user_id, date, approaches, work, arms, legs, chest, abs_, back)
+    def add_workout(self, workout_id: int, user_id: int, date: str, exercise_id: int, approaches: int,
+                    work: float, arms: float, legs: float, chest: float, abs_: float, back: float):
+        sql = (f'INSERT OR IGNORE INTO workouts (workout_id, user_id, date, exercise_id, approaches,'
+               f' work, arms, legs, chest, abs, back) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+        parameters = (workout_id, user_id, date, exercise_id, approaches, work, arms, legs, chest, abs_, back)
         self.execute(sql, parameters=parameters, commit=True)
 
     def create_table_approaches(self):
@@ -497,3 +508,17 @@ class SQLiteDatabase:
 
     def set_type_1(self):
         self.execute(sql='UPDATE exercises SET type = 1;', commit=True)
+
+    def add_levels(self):
+        sql = '''
+        ALTER TABLE exercises_muscles ADD level REAL;
+        ALTER TABLE users ADD arms_level REAL;
+        ALTER TABLE users ADD legs_level REAL;
+        ALTER TABLE users ADD chest_level REAL;
+        ALTER TABLE users ADD abs_level REAL;
+        ALTER TABLE users ADD back_level REAL;
+        '''
+        self.execute(sql, commit=True, script=True)
+
+    def add_ex_to_workouts(self):
+        self.execute(sql='ALTER TABLE workouts ADD exercise_id INTEGER;', commit=True)

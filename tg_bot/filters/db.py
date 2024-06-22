@@ -13,8 +13,8 @@ class MyUserDbFilter(BaseFilter):
         self.column = column
 
     async def __call__(self, message: Message, db: SQLiteDatabase) -> bool | dict[str, Any]:
-        cell = db.select_rows(table='users', fetch='one', user_id=message.from_user.id)[self.column]
-        logger.debug(f'{cell=}')
+        cell = db.select_rows(table='users', fetch='one', user_id=message.from_user.id)
+        logger.debug(f'filter  {cell=}')
         if cell:
             return {'cell': cell[self.column]}
         return False
