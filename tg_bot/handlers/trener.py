@@ -21,7 +21,7 @@ from tg_bot.services.ufuncs import clear_delete_list
 from tg_bot.states.trener import FSMTrener
 from tg_bot.utils.life_calendar import generate_image_calendar
 from tg_bot.states.life_calendar import FSMLifeCalendar
-from tg_bot.utils.trener import generate_new_split, Split
+from tg_bot.utils.trener import generate_new_split, Split, Approach
 
 # Инициализируем роутер уровня модуля
 router = Router()
@@ -46,6 +46,8 @@ async def auto_choose_exercise(user_id, db: SQLiteDatabase, black_list) -> int:
     :param data:
     :return:
     """
+
+    #  1. Находим в истории тренировку с максимальной работой за месяц, добавляем 10%, получаем норму работы на новую тренировку.
     month_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
     week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
     all_workouts = db.select_rows(table='workouts', fetch='all', tuple_=True, user_id=user_id)
@@ -106,19 +108,22 @@ async def award_user(user, db: SQLiteDatabase):
     :return:
     """
 
-    # максимальный повтор упражнения
+    # максимальный повтор упражнения в последнем воркауте
     last_max_approach = db.select_filtered_sorted_rows(table='approaches', sql2=' ORDER BY workout_id DESC, dynamic DESC',
                                                        fetch='one', user_id=user)
     exercise_id = last_max_approach['exercise_id']
     workout_id = last_max_approach['workout_id']
+    # максимальный повтор упражнения во всех воркаутах, кроме последнего
     max_approach = db.select_filtered_sorted_rows(table='approaches',
                                                   sql2=f' AND workout_id <> {workout_id} ORDER BY dynamic DESC',
                                                   fetch='one', user_id=user,
                                                   exercise_id=exercise_id)
     if not max_approach:
         max_approach = {'dynamic': 0}
+    # работа в последнем воркауте
     last_job = db.select_filtered_sorted_rows(table='workouts', sql2=' ORDER BY workout_id DESC',
                                               fetch='one', user_id=user)
+    # максимальная работа среди всех воркаутов, кроме последнего
     max_job = db.select_filtered_sorted_rows(table='workouts', sql2=f' AND workout_id <> {workout_id} ORDER BY work DESC',
                                              fetch='one', user_id=user)
     if not max_job:
@@ -129,34 +134,6 @@ async def award_user(user, db: SQLiteDatabase):
     logger.debug(f'{max_job["work"]=}')
     logger.debug(f'{last_max_approach["dynamic"]=}')
     logger.debug(f'{max_approach["dynamic"]=}')
-    # all_workouts = sorted(db.select_rows(table='approaches', fetch='all', tuple_=True, user_id=user),
-    #                       key=lambda a: a[1], reverse=True)
-    # exercise = all_workouts[0][3]
-    # last_workout = sorted(db.select_rows(table='approaches', fetch='all', tuple_=True, user_id=user, exercise_id=exercise,
-    #                                      workout_id=all_workouts[0][1]), key=lambda a: a[4])
-    # all_workouts = sorted(db.select_rows(table='approaches', fetch='all', tuple_=True, user_id=user, exercise_id=exercise),
-    #                       key=lambda a: a[1])
-    #
-    # last_work = 0
-    # last_reps = 0
-    # for workout in last_workout:
-    #     last_work += workout[8]
-    #     last_reps = max(last_reps, workout[5])
-    # logger.debug(f'{last_work=}')
-    # logger.debug(f'{last_reps=}')
-    # all_workouts_voc = {}
-    # max_work = False
-    # max_reps = False
-    # for workout in all_workouts:
-    #     if workout[1] not in all_workouts_voc:
-    #         all_workouts_voc[workout[1]] = {'work': 0, 'reps': 0}
-    #     if workout[8]:
-    #         all_workouts_voc[workout[1]]['work'] += workout[8]
-    #     all_workouts_voc[workout[1]]['reps'] = max(workout[5], all_workouts_voc[workout[1]]['reps'])
-    # all_workouts_voc.pop(last_workout[0][1], False)
-    # for workout in all_workouts_voc:
-    #     max_work = all_workouts_voc[workout]['work'] < last_work
-    #     max_reps = all_workouts_voc[workout]['reps'] < last_reps
     return {'work': max_work, 'reps': exercise_id if max_reps else max_reps}
 
 
@@ -172,7 +149,7 @@ async def run_timer(data, db: SQLiteDatabase, message, bot):
     data['delete_list'].append(msg.message_id)
     await asyncio.sleep(2)
     msg = await message.answer(
-        text=f'Выполните подход {data["approach"] + 1} из {data["new_workout"][data["approach"]]} повторений '
+        text=f'Выполните подход {data["approach"] + 1} из {data["new_workout"][data["approach"]][1]} повторений '
              f'и нажмите кнопку "Готово". Если вы сделали другое количество, напишите сколько.', reply_markup=ready)
     data['delete_list'].append(msg.message_id)
     return data
@@ -182,7 +159,7 @@ async def save_approach(data, db: SQLiteDatabase, message, approach):
     if message.text.isdigit():
         data['done_workout'].append(int(message.text))
     else:
-        data['done_workout'].append(data['new_workout'][approach - 1])
+        data['done_workout'].append(data['new_workout'][approach - 1][1])
     user = db.select_rows(table='users', fetch='one', user_id=message.from_user.id)
     work = (data['done_workout'][approach - 1] * int(user['weight']) / 100
             * db.select_rows(table='exercises', fetch='one', exercise_id=data['exercise_id'])['work'])
@@ -501,15 +478,21 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase)
     else:
         new_workout = '1 1 1 1 1'
     new_workout_split = list(map(int, new_workout.split()))
+    logger.debug(f'{new_workout_split=}')
+    approaches = [Approach(exercise_id, new_workout_split[i], False) if i in {0, 2, 3} else
+                  Approach(exercise_id, new_workout_split[i], True)
+                  for i, approach in enumerate(new_workout_split)]
+    logger.debug(f'{approaches=}')
+
     msg = await message.answer(
         text=f'Если упражнение вам незнакомо или непонятно, найдите его в интернет и изучите самостоятельно.\n\n'
              f'Теперь вам нужно выполнить 5 подходов выбранного упражнения, с указанным количество повторений: '
-             f'\n{new_workout}+\n'
+             f'\n{" ".join([str(approach[1]) for approach in approaches])}+\n'
              f'Повторения делайте в среднем темпе, паузу между подходами выбирайте самостоятельно, '
              f'руководствуясь собственными ощущениями. Обычно пауза длится от 10 секунд до 3 минут. '
              f'В последнем пятом подходе сделайте МАКСИМУМ повторений, для этого он обозначен '
-             f'{new_workout_split[-1]}+.\n'
-             f'Итак, выполните первый подход из {new_workout_split[0]} повторений и нажмите кнопку "Готово". '
+             f'{approaches[-1][1]}+.\n'
+             f'Итак, выполните первый подход из {approaches[0][1]} повторений и нажмите кнопку "Готово". '
              f'Если не удалось выполнить все необходимые повторения, напишите сколько удалось.',
         reply_markup=ready)
 
@@ -519,7 +502,7 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase)
     await state.update_data(workout_number=workout_number)
     await state.update_data(time_start=time_start)
     await state.update_data(delete_list=data['delete_list'])
-    await state.update_data(new_workout=new_workout_split)
+    await state.update_data(new_workout=approaches)
     await state.update_data(done_workout=[])
     await state.update_data(approach=1)
     await state.set_state(FSMTrener.workout_process)
@@ -665,7 +648,7 @@ async def workout_process(message: Message, state: FSMContext, db: SQLiteDatabas
         await state.update_data(msg_timer=msg_timer.message_id)
     await asyncio.sleep(2)
     msg = await message.answer(
-        text=f'Выполните подход {data["approach"] + 1} из {data["new_workout"][data["approach"]]} повторений '
+        text=f'Выполните подход {data["approach"] + 1} из {data["new_workout"][data["approach"]][1]} повторений '
              f'и нажмите кнопку "Готово". Если вы сделали другое количество, напишите сколько.', reply_markup=ready)
     data['delete_list'].append(msg.message_id)
     if data['approach'] == 4:
@@ -696,18 +679,18 @@ async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase, 
     if awards['reps']:
         if awards['work']:
             msg = await message.answer(
-                text=f'Поздравляем, у вас новые достижения! Вы выполнили максимальную работу за тренировку, '
+                text=f'🎉 Поздравляем, у вас новые достижения! 🏆🏆 Вы выполнили максимальную работу за тренировку, '
                      f'и побили рекорд повторений в упражнении №{awards["reps"]}.',
                 reply_markup=ReplyKeyboardRemove())
         else:
             msg = await message.answer(
-                text=f'Поздравляем, у вас новое достижение! Вы побили рекорд повторений в упражнении '
+                text=f'🎉 Поздравляем, у вас новое достижение! 🏆 Вы побили рекорд повторений в упражнении '
                      f'№{awards["reps"]}.', reply_markup=ReplyKeyboardRemove())
         data['delete_list'].append(msg.message_id)
     else:
         if awards['work']:
             msg = await message.answer(
-                text=f'Поздравляем, у вас новое достижение! Вы выполнили максимальную работу за тренировку. ',
+                text=f'🎉 Поздравляем, у вас новое достижение! 🏆 Вы выполнили максимальную работу за тренировку. ',
                 reply_markup=ReplyKeyboardRemove())
             data['delete_list'].append(msg.message_id)
     msg = await message.answer(text=f"Если остались силы, можете выполнить ещё 5 подходов другого упражнения. Готовы?",

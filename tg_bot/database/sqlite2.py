@@ -369,6 +369,19 @@ class SQLiteDatabase:
         sql, parameters = self.format_args(sql, kwargs)
         return self.execute(sql + sql2, parameters, fetch=fetch, tuple_=tuple_)
 
+    def sum_filtered_sorted_rows(self, table, fetch, cells, sql2: str = '', tuple_=False, **kwargs):
+        sql = ', '.join([f'SUM({cell})' for cell in cells])
+        sql = f'SELECT {sql} FROM {table} WHERE '
+        sql, parameters = self.format_args(sql, kwargs)
+        return self.execute(sql + sql2, parameters, fetch=fetch, tuple_=tuple_)
+
+    def update_cells(self, table, cells, **kwargs):
+        sql = ', '.join([f'{cell}={cells[cell]}' for cell in cells])
+        sql = f'UPDATE {table} SET {sql} WHERE '
+        sql, parameters = self.format_args(sql, kwargs)
+        return self.execute(sql, parameters, commit=True)
+
+
     def update_cell(self, table, cell, cell_value, key, key_value):
         sql = f'UPDATE {table} SET {cell}=? WHERE {key}=? '
         return self.execute(sql, parameters=(cell_value, key_value), commit=True)
