@@ -7,7 +7,7 @@ from aiogram.filters import Command, CommandStart, StateFilter, ChatMemberUpdate
 
 from logging_settings import logger
 from tg_bot.config import Config
-from tg_bot.database.sqlite2 import SQLiteDatabase
+from tg_bot.database.sqlite import SQLiteDatabase
 from tg_bot.lexicon.a_user import LEXICON_RU
 from tg_bot.services.setting_commands import set_starting_commands
 from tg_bot.states.user import FSMUser

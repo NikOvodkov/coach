@@ -7,7 +7,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 
 from logging_settings import logger
-from tg_bot.database.sqlite2 import SQLiteDatabase
+from tg_bot.database.sqlite import SQLiteDatabase
 from tg_bot.keyboards.energy_balance import balance
 
 router = Router()

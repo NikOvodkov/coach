@@ -1,4 +1,4 @@
-from tg_bot.database.sqlite2 import SQLiteDatabase
+from tg_bot.database.sqlite import SQLiteDatabase
 
 db = SQLiteDatabase(path_to_db='test.db')
 

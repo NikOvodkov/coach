@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
 from logging_settings import logger
-from tg_bot.database.sqlite2 import SQLiteDatabase
+from tg_bot.database.sqlite import SQLiteDatabase
 
 
 class MyUserDbFilter(BaseFilter):

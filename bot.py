@@ -11,7 +11,7 @@ from logging_settings import logger
 from tg_bot.config import load_config, Config
 from tg_bot.daemons.life_calendar import send_life_calendar
 
-from tg_bot.database.sqlite2 import SQLiteDatabase
+from tg_bot.database.sqlite import SQLiteDatabase
 from tg_bot.handlers import a_user, a_other, a_admin, atomy, gsheet, life_calendar, update_db_sqlite, trener, trener_add, energy_balance, trener_moderate
 from tg_bot.middlewares.shadow_ban import ShadowBanMiddleware
 from tg_bot.middlewares.throttling import ThrottlingMiddleware
@@ -89,7 +89,10 @@ async def main():
     db = SQLiteDatabase()
     try:
         logger.info('Создаём подключение к базе данных')
+
         # разовые коррекции БД:
+        db.delete_table('users_weights_long')
+        db.delete_table('users_base_long')
         # db.delete_table('equipment_base')
         # db.set_type_1()
         # db.create_table_materials()
@@ -99,9 +102,8 @@ async def main():
         # db.delete_table('muscles_base')
         # db.add_levels()
         # db.add_ex_to_workouts()
-        db.delete_table('workouts_long')
-        db.delete_table('workouts_short')
-
+        # db.delete_table('workouts_long')
+        # db.delete_table('workouts_short')
         # db.create_table_users()
         # db.create_table_exercises()
         # db.create_table_exercises_users()

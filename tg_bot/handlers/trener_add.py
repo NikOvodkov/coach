@@ -9,7 +9,7 @@ from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKey
 
 from logging_settings import logger
 from tg_bot.config import load_config, Config
-from tg_bot.database.sqlite2 import SQLiteDatabase
+from tg_bot.database.sqlite import SQLiteDatabase
 from tg_bot.filters.admin import IsAdmin
 from tg_bot.filters.db import MaterialType
 from tg_bot.keyboards.trener import yesno

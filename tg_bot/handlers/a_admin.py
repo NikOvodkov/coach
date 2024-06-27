@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, BotCommandScopeChat, CallbackQuery
 
 from logging_settings import logger
-from tg_bot.database.sqlite2 import SQLiteDatabase
+from tg_bot.database.sqlite import SQLiteDatabase
 from tg_bot.filters.admin import IsAdmin
 from tg_bot.keyboards.inline import keyboard
 from tg_bot.services.setting_commands import set_admins_commands, set_chat_admins_commands
@@ -33,7 +33,7 @@ async def admin_start(message: Message, db: SQLiteDatabase, state: FSMContext):
         # print(err)
         logger.exception(f'User {name=} {user_id=} not added to db!')
     finally:
-        count_users = db.count_rows('users_base_long')[0]
+        count_users = db.count_rows('users')[0]
         await message.answer(
             '\n'.join([
                 f'Привет, админ {message.from_user.full_name}!',

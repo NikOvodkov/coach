@@ -13,195 +13,18 @@ from aiogram.utils.markdown import hide_link
 from aiogram.utils.media_group import MediaGroupBuilder
 
 from logging_settings import logger
-from tg_bot.database.sqlite2 import SQLiteDatabase
+from tg_bot.database.sqlite import SQLiteDatabase
 from tg_bot.filters.db import MyUserDbFilter
-from tg_bot.keyboards.trener import yesno, ready
+from tg_bot.keyboards.trener import yesno, ready, choose_exercise, nokeyboard
 from tg_bot.lexicon.life_calendar import LEXICON_RU
 from tg_bot.services.ufuncs import clear_delete_list
 from tg_bot.states.trener import FSMTrener
 from tg_bot.utils.life_calendar import generate_image_calendar
 from tg_bot.states.life_calendar import FSMLifeCalendar
-from tg_bot.utils.trener import generate_new_split, Split, Approach
+from tg_bot.utils.trener import generate_new_split, Split, Approach, gnrt_wrkt, show_exercise, award_user, save_approach
 
 # Инициализируем роутер уровня модуля
 router = Router()
-
-
-async def list_exercise_user(user_id: int, db: SQLiteDatabase, exercise_id: int) -> int:
-    return db.select_rows('exercises_users', fetch='one', uder_id=user_id, exercise_id=exercise_id)['list']
-
-
-async def auto_choose_exercise(user_id, db: SQLiteDatabase, black_list) -> int:
-    """
-    1. Находим в истории тренировку с максимальной работой за месяц, добавляем 10%, получаем норму работы на новую тренировку.
-    2. Суммируем недельную работу по каждой мышце, выясняем у какой меньше всего, будем прорабатывать её.
-    3. Находим упражнения на нужную мышечную группу, с загрузкой 0.3 и выше. Выбираем то, которое реже всего встречалось в
-    истории тренировок.
-    4. Проводим тренировку с найденным упражнением.
-    5. Если осталась часть нормы работы, повторяем с пункта 2.
-    :param user_id:
-    :param black_list:
-    :param user:
-    :param db:
-    :param data:
-    :return:
-    """
-
-    #  1. Находим в истории тренировку с максимальной работой за месяц, добавляем 10%, получаем норму работы на новую тренировку.
-    month_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
-    week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
-    all_workouts = db.select_rows(table='workouts', fetch='all', tuple_=True, user_id=user_id)
-    all_workouts = sorted(all_workouts, key=lambda a: 0 if a[4] is None else a[4], reverse=True)
-    max_job = 0
-    for workout in all_workouts:
-        if str(workout[2]) != 'None' and str(workout[2]) > month_ago:
-            if workout[4]:
-                max_job = workout[4]
-                break
-    logger.debug(f'{max_job=}')
-
-    all_workouts = db.select_rows(table='approaches', fetch='all', tuple_=True, user_id=user_id)
-    all_workouts = sorted(all_workouts, key=lambda a: '0' if a[7] is None else a[7], reverse=True)
-    work = {'Руки': 0, 'Ноги': 0, 'Грудь': 0, 'Живот': 0, 'Спина': 0}
-    for workout in all_workouts:
-        if workout[8] and workout[7] and str(workout[7]) > week_ago:
-            work['Руки'] += workout[9]
-            work['Ноги'] += workout[10]
-            work['Грудь'] += workout[11]
-            work['Живот'] += workout[12]
-            work['Спина'] += workout[13]
-    min_job_group = min(work, key=work.get)
-    logger.debug(f'{min_job_group=}')
-
-    exercises = sorted(db.select_rows(table='exercises_muscles', fetch='all', tuple_=True, muscle_name=min_job_group))
-    exercises_voc = {}
-    for exercise in exercises:
-        exercises_voc[exercise[0]] = [0, exercise[4]]
-    exercises = db.select_rows(table='approaches', fetch='all', tuple_=True, user_id=user_id)
-    for exercise in exercises:
-        exercises_voc[exercise[3]][0] += 1
-    logger.debug(f'{black_list=}')
-    blocked_exercises = db.select_rows(table='exercises_users', fetch='all', user_id=user_id, list=0)
-    for exercise in blocked_exercises:
-        if exercise['exercise_id'] not in black_list:
-            black_list.append(exercise['exercise_id'])
-    logger.debug(f'{black_list=}')
-    for ex in black_list:
-        exercises_voc.pop(ex, '')
-    rare_exercise = min(exercises_voc, key=exercises_voc.get)
-    logger.debug(f'{rare_exercise=}')
-    return rare_exercise
-
-
-async def award_user(user, db: SQLiteDatabase):
-    """
-    Проверяем, был ли в последнем воркауте максимум повторений:
-    - находим максимальное повторение в последнем воркауте
-    - находим максимальное повторение во всех подходах всех воркаутов упражнения
-    - сравниваем и выдаем ответ
-    Проверяем, была ли в воркауте выполнена максимальная работа:
-    - считаем работу в последнем воркауте
-    - считаем работу во всех воркаутах
-    - сравниваем и выдаем ответ
-    :param user:
-    :param db:
-    :return:
-    """
-
-    # максимальный повтор упражнения в последнем воркауте
-    last_max_approach = db.select_filtered_sorted_rows(table='approaches', sql2=' ORDER BY workout_id DESC, dynamic DESC',
-                                                       fetch='one', user_id=user)
-    exercise_id = last_max_approach['exercise_id']
-    workout_id = last_max_approach['workout_id']
-    # максимальный повтор упражнения во всех воркаутах, кроме последнего
-    max_approach = db.select_filtered_sorted_rows(table='approaches',
-                                                  sql2=f' AND workout_id <> {workout_id} ORDER BY dynamic DESC',
-                                                  fetch='one', user_id=user,
-                                                  exercise_id=exercise_id)
-    if not max_approach:
-        max_approach = {'dynamic': 0}
-    # работа в последнем воркауте
-    last_job = db.select_filtered_sorted_rows(table='workouts', sql2=' ORDER BY workout_id DESC',
-                                              fetch='one', user_id=user)
-    # максимальная работа среди всех воркаутов, кроме последнего
-    max_job = db.select_filtered_sorted_rows(table='workouts', sql2=f' AND workout_id <> {workout_id} ORDER BY work DESC',
-                                             fetch='one', user_id=user)
-    if not max_job:
-        max_job = {'work': 0}
-    max_work = last_job['work'] > max_job['work']
-    max_reps = last_max_approach['dynamic'] > max_approach['dynamic']
-    logger.debug(f'{last_job["work"]=}')
-    logger.debug(f'{max_job["work"]=}')
-    logger.debug(f'{last_max_approach["dynamic"]=}')
-    logger.debug(f'{max_approach["dynamic"]=}')
-    return {'work': max_work, 'reps': exercise_id if max_reps else max_reps}
-
-
-async def run_timer(data, db: SQLiteDatabase, message, bot):
-    data['delete_list'].append(message.message_id)
-    for message_id in data['delete_list']:
-        await bot.delete_message(chat_id=message.from_user.id, message_id=message_id)
-    data['delete_list'] = []
-    msg = await message.answer_animation(
-        animation=db.select_rows(table='multimedia', fetch='one', name='timer')['file_id'],
-        caption='Отдыхайте от 10 секунд до 5 минут...',
-        reply_markup=ReplyKeyboardRemove())
-    data['delete_list'].append(msg.message_id)
-    await asyncio.sleep(2)
-    msg = await message.answer(
-        text=f'Выполните подход {data["approach"] + 1} из {data["new_workout"][data["approach"]][1]} повторений '
-             f'и нажмите кнопку "Готово". Если вы сделали другое количество, напишите сколько.', reply_markup=ready)
-    data['delete_list'].append(msg.message_id)
-    return data
-
-
-async def save_approach(data, db: SQLiteDatabase, message, approach):
-    if message.text.isdigit():
-        data['done_workout'].append(int(message.text))
-    else:
-        data['done_workout'].append(data['new_workout'][approach - 1][1])
-    user = db.select_rows(table='users', fetch='one', user_id=message.from_user.id)
-    work = (data['done_workout'][approach - 1] * int(user['weight']) / 100
-            * db.select_rows(table='exercises', fetch='one', exercise_id=data['exercise_id'])['work'])
-    arms_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=0)['load']
-    legs_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=1)['load']
-    chest_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=2)['load']
-    abs_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=3)['load']
-    back_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=4)['load']
-    db.add_approach(workout_id=data['workout_number'], user_id=user['user_id'], exercise_id=data['exercise_id'],
-                    number=approach, dynamic=data['done_workout'][approach - 1], static=0, date=datetime.utcnow().isoformat(),
-                    work=work, arms=arms_work, legs=legs_work, chest=chest_work, abs_=abs_work, back=back_work)
-    if approach == len(data['new_workout']):
-        work = (sum(data['done_workout']) * int(user['weight']) / 100
-                * db.select_rows(table='exercises', fetch='one', exercise_id=data['exercise_id'])['work'])
-        arms_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=0)['load']
-        legs_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=1)['load']
-        chest_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=2)['load']
-        abs_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=3)['load']
-        back_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=data['exercise_id'], muscle_id=4)['load']
-        db.add_workout(workout_id=data['workout_number'], user_id=user['user_id'], date=datetime.utcnow().isoformat(),
-                       exercise_id=data['exercise_id'], approaches=approach, work=work, arms=arms_work, legs=legs_work, chest=chest_work, abs_=abs_work, back=back_work)
-    return data
-
-
-@router.message(F.video)
-@router.message(F.animation)
-async def get_multimedia(message: Message, state: FSMContext, db: SQLiteDatabase):
-    if message.caption == 'timer':
-        db.update_cell(table='multimedia', cell='file_id',
-                       cell_value=message.animation.file_id, key='name', key_value=message.caption)
-        db.update_cell(table='multimedia', cell='file_unique_id',
-                       cell_value=message.animation.file_unique_id, key='name', key_value=message.caption)
-    if message.caption == 'warmup':
-        db.update_cell(table='multimedia', cell='file_id',
-                       cell_value=message.video.file_id, key='name', key_value=message.caption)
-        db.update_cell(table='multimedia', cell='file_unique_id',
-                       cell_value=message.video.file_unique_id, key='name', key_value=message.caption)
-    if message.caption.isdigit():
-        db.update_cell(table='exercises', cell='file_id', cell_value=message.animation.file_id,
-                       key='exercise_id', key_value=int(message.caption))
-        db.update_cell(table='exercises', cell='file_unique_id', cell_value=message.animation.file_unique_id,
-                       key='exercise_id', key_value=int(message.caption))
 
 
 @router.message(Command(commands='statistics'))
@@ -212,19 +35,25 @@ async def show_statistics(message: Message, state: FSMContext, db: SQLiteDatabas
     statistics = {}
     for workout in workouts:
         if workout['workout_id'] in statistics:
-            statistics[workout['workout_id']] += '-' + str(workout['dynamic'])
+            statistics[workout['workout_id']] += ' #' + str(workout['exercise_id']) + '-' + str(workout['dynamic'])
         else:
             if workout['date']:
                 logger.debug(f'{workout["date"]=}')
-                date = datetime.fromisoformat(workout['date']).strftime('%d.%m.%y')
+                date = datetime.fromisoformat(workout['date']).strftime('%d.%m')
             else:
                 date = ''
             statistics[workout['workout_id']] = (date + ' #' + str(workout['exercise_id'])
                                                  + '-' + str(workout['dynamic']))
     logger.debug(f'{statistics=}')
+    i = 1
+    msg = {1: ''}
     for workout in statistics:
-        msg += statistics[workout] + '\n'
-    await message.answer(text=msg)
+        if len(msg[i]) > 4000:
+            await message.answer(text=msg[i])
+            i += 1
+            msg[i] = ''
+        msg[i] += statistics[workout] + '\n'
+    await message.answer(text=msg[i])
     await state.clear()
 
 
@@ -283,6 +112,7 @@ async def check_bdate_01new(message: Message, state: FSMContext, db: SQLiteDatab
     data = await state.get_data()
     if 'delete_list' not in data:
         data['delete_list'] = []
+        data['black_list'] = []
     msg = await message.answer(text='Для учёта возраста при подборе тренировочной программы '
                                     'введите через пробел дату вашего рождения, в формате 22 06 1990: ',
                                reply_markup=ReplyKeyboardRemove())
@@ -399,7 +229,7 @@ async def enter_data_06new(message: Message, bot: Bot, state: FSMContext, db: SQ
     data['delete_list'].append(msg.message_id)
     await state.update_data(delete_list=data['delete_list'])
     await state.update_data(black_list=[])
-    await state.update_data(exercise_id=None)
+    await state.update_data(new_workout=[])
     await state.set_state(FSMTrener.show_exercises)
 
 
@@ -411,35 +241,18 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase,
     data = await state.get_data()
     if 'delete_list' not in data:
         data['delete_list'] = []
-    logger.debug(f'{data["delete_list"]=}')
     data['delete_list'].append(message.message_id)
-    logger.debug('delete_list appended')
     data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
-    logger.debug('pered zamenit')
     if message.text.lower().strip() == 'заменить':
-        data['black_list'].append(data['exercise_id'])
+        data['black_list'].append(data['new_workout'][0][0])
         if len(data['black_list']) > 27:
             data['black_list'] = []
         logger.debug(f'{data["black_list"]=}')
-
-    data['exercise_id'] = await auto_choose_exercise(message.from_user.id, db, data['black_list'])
-    logger.debug(f'{data["exercise_id"]=}')
-    exercise = db.select_rows(table='exercises', fetch='one', exercise_id=data['exercise_id'])
-    if exercise['file_id']:
-        msg = await message.answer_animation(
-            animation=exercise['file_id'],
-            caption=f'{exercise["exercise_id"]}. {exercise["name"]}',
-            reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Заменить"), KeyboardButton(text="Оставить")],
-                                                       [KeyboardButton(text="Выбрать из списка")]],
-                                             one_time_keyboard=True, resize_keyboard=True))
-    else:
-        msg = await message.answer(text=f'{exercise["exercise_id"]}. {exercise["name"]}',
-                                   reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Заменить"),
-                                                                               KeyboardButton(text="Оставить")],
-                                                                              [KeyboardButton(text="Выбрать из списка")]],
-                                                                    one_time_keyboard=True, resize_keyboard=True))
+    data['new_workout'] = await gnrt_wrkt(message.from_user.id, db, black_list=data['black_list'])
+    logger.debug(f'{data["new_workout"][0][0]=}')
+    msg = await show_exercise(message, db, data["new_workout"][0][0], choose_exercise)
     data['delete_list'].append(msg.message_id)
-    await state.update_data(exercise_id=data['exercise_id'])
+    await state.update_data(new_workout=data["new_workout"])
     await state.update_data(delete_list=data['delete_list'])
     await state.update_data(black_list=data['black_list'])
     await state.set_state(FSMTrener.workout)
@@ -450,60 +263,34 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase,
 async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase):
     data = await state.get_data()
     if message.text.lower().strip() == 'оставить':
-        exercise_id = data['exercise_id']
+        exercise_id = data["new_workout"][0][0]
         data['delete_list'].pop() if data['delete_list'] else ''
     else:
         exercise_id = int(message.text)
-        exercise = db.select_rows(table='exercises', fetch='one', exercise_id=exercise_id)
-        if exercise['file_id']:
-            await message.answer_animation(
-                animation=exercise['file_id'],
-                caption=f'{exercise["exercise_id"]}. {exercise["name"]}',
-                reply_markup=ReplyKeyboardRemove())
-        else:
-            await message.answer(text=f'{exercise["exercise_id"]}. {exercise["name"]}', reply_markup=ReplyKeyboardRemove())
-
-    user = db.select_rows(table='users', fetch='one', user_id=message.from_user.id)
+        await show_exercise(message, db, exercise_id, nokeyboard)
+        data['new_workout'] = await gnrt_wrkt(user_id=message.from_user.id, db=db, old_ex=exercise_id,
+                                              black_list=data['black_list'])
     time_start = datetime.utcnow().timestamp()
     workout_number = db.select_table(table='approaches')[-1]['workout_id'] + 1
-    last_workouts = db.select_last_workout(user_id=user['user_id'], exercise_id=exercise_id, tuple_=True)
-
-    if last_workouts:
-        for i in range(5 - len(last_workouts)):
-            last_workouts.append((last_workouts[0][0] + 1, last_workouts[0][1], last_workouts[0][2], last_workouts[0][3],
-                                  len(last_workouts) + i, 0, 0, last_workouts[0][7], 0, 0, 0, 0, 0, 0))
-        new_workout = (str(last_workouts[0][5]) + ' ' + str(last_workouts[1][5]) + ' ' + str(last_workouts[2][5]) +
-                       ' ' + str(last_workouts[3][5]) + ' ' + str(last_workouts[4][5]))
-        new_workout = generate_new_split(new_workout)
-    else:
-        new_workout = '1 1 1 1 1'
-    new_workout_split = list(map(int, new_workout.split()))
-    logger.debug(f'{new_workout_split=}')
-    approaches = [Approach(exercise_id, new_workout_split[i], False) if i in {0, 2, 3} else
-                  Approach(exercise_id, new_workout_split[i], True)
-                  for i, approach in enumerate(new_workout_split)]
-    logger.debug(f'{approaches=}')
-
+    logger.debug(f'{data["new_workout"]=}')
     msg = await message.answer(
         text=f'Если упражнение вам незнакомо или непонятно, найдите его в интернет и изучите самостоятельно.\n\n'
-             f'Теперь вам нужно выполнить 5 подходов выбранного упражнения, с указанным количество повторений: '
-             f'\n{" ".join([str(approach[1]) for approach in approaches])}+\n'
+             f'Теперь вам нужно выполнить 5 подходов выбранного упражнения, с указанным количеством повторений: '
+             f'\n{" ".join([str(approach[1]) + ("+" if approach[2] else "") for approach in data["new_workout"]])}\n'
              f'Повторения делайте в среднем темпе, паузу между подходами выбирайте самостоятельно, '
-             f'руководствуясь собственными ощущениями. Обычно пауза длится от 10 секунд до 3 минут. '
-             f'В последнем пятом подходе сделайте МАКСИМУМ повторений, для этого он обозначен '
-             f'{approaches[-1][1]}+.\n'
-             f'Итак, выполните первый подход из {approaches[0][1]} повторений и нажмите кнопку "Готово". '
+             f'руководствуясь собственными ощущениями. Обычно пауза длится от 10 секунд до 5 минут. '
+             f'Если после количества повторений стоит +, старайтесь сделать МАКСИМУМ повторений в этом подходе.\n'
+             f'Итак, выполните первый подход из {data["new_workout"][0][1]} повторений и нажмите кнопку "Готово". '
              f'Если не удалось выполнить все необходимые повторения, напишите сколько удалось.',
         reply_markup=ready)
 
     data['delete_list'].append(msg.message_id)
     data['delete_list'].append(message.message_id)
-    await state.update_data(exercise_id=exercise_id)
     await state.update_data(workout_number=workout_number)
     await state.update_data(time_start=time_start)
     await state.update_data(delete_list=data['delete_list'])
-    await state.update_data(new_workout=approaches)
-    await state.update_data(done_workout=[])
+    await state.update_data(new_workout=data["new_workout"])
+    await state.update_data(done_approaches=[])
     await state.update_data(approach=1)
     await state.set_state(FSMTrener.workout_process)
 
@@ -515,7 +302,6 @@ async def start_trener(message: Message, state: FSMContext, db: SQLiteDatabase, 
     data['delete_list'].append(message.message_id)
     data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
     await asyncio.sleep(1)
-
     exercises_table = db.select_table('exercises')
     if exercises_table:
         captions = []
@@ -547,6 +333,102 @@ async def start_trener(message: Message, state: FSMContext, db: SQLiteDatabase, 
                                reply_markup=ReplyKeyboardRemove())
     data['delete_list'].append(msg.message_id)
     await state.update_data(delete_list=data['delete_list'])
+
+
+
+
+@router.message(F.text, StateFilter(FSMTrener.workout_process))
+async def workout_process(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot):
+    logger.debug('enter_workout_process')
+    data = await state.get_data()
+    logger.debug(f'before save {data["new_workout"]=}')
+    data = await save_approach(data, db, message)
+    logger.debug(f'after save {data["new_workout"]=}')
+    await state.update_data(done_approaches=data['done_approaches'])
+    await state.update_data(new_workout=data["new_workout"])
+    approach = len(data['done_approaches'])
+    data['delete_list'].append(message.message_id)
+    data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
+    if approach == 1:
+        msg_timer = await message.answer_animation(
+            animation=db.select_rows(table='multimedia', fetch='one', name='timer')['file_id'],
+            caption='Отдыхайте от 10 секунд до 5 минут...',
+            reply_markup=ReplyKeyboardRemove())
+        await state.update_data(msg_timer=msg_timer.message_id)
+    await asyncio.sleep(2)
+    msg = await message.answer(
+        text=f'Выполните подход {approach + 1} из {data["new_workout"][0][1]}'
+             f'{"+" if data["new_workout"][0][2] else ""} повторений '
+             f'и нажмите кнопку "Готово". Если вы сделали другое количество, напишите сколько.', reply_markup=ready)
+    data['delete_list'].append(msg.message_id)
+    logger.debug(f'{approach=}')
+    if approach == 4:
+        data['delete_list'].append(data['msg_timer'])
+    # data = await run_timer(data, db, message, bot)
+    await state.update_data(delete_list=data['delete_list'])
+    await state.update_data(approach=approach + 1)
+    if approach == 4:
+        await state.set_state(FSMTrener.workout_done)
+        logger.debug(f'workout_done_set')
+    else:
+        await state.set_state(FSMTrener.workout_process)
+
+
+@router.message(F.text, StateFilter(FSMTrener.workout_done))
+async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot):
+    data = await state.get_data()
+    data['delete_list'].append(message.message_id)
+    data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
+    logger.debug(f'before last save_approaches')
+    data = await save_approach(data, db, message)
+    logger.debug(f'after last save_approaches')
+    await state.update_data(done_approaches=data['done_approaches'])
+    await state.update_data(new_workout=data["new_workout"])
+    logger.debug(f'before workout saved {data["done_approaches"]=}')
+    await message.answer(text=f"Тренировка сохранена: "
+                              f"{', '.join(list(map(lambda app: f'№{str(app[0])}-{str(app[1])}', data['done_approaches'])))}\n"
+                              f"Рекомендованный перерыв между тренировками одного упражнения - от 2 до 7 дней. "
+                              f"Если перерыв будет более 7 дней, прогресс может отсутствовать.")
+    awards = await award_user(message.from_user.id, db)
+    logger.debug(f'{awards=}')
+    if awards['reps']:
+        if awards['work']:
+            msg = await message.answer(
+                text=f'🎉 Поздравляем, у вас новые достижения! 🏆🏆 Вы выполнили максимальную работу за тренировку, '
+                     f'и побили рекорд повторений в упражнении №{awards["reps"]}.',
+                reply_markup=ReplyKeyboardRemove())
+        else:
+            msg = await message.answer(
+                text=f'🎉 Поздравляем, у вас новое достижение! 🏆 Вы побили рекорд повторений в упражнении '
+                     f'№{awards["reps"]}.', reply_markup=ReplyKeyboardRemove())
+        data['delete_list'].append(msg.message_id)
+    else:
+        if awards['work']:
+            msg = await message.answer(
+                text=f'🎉 Поздравляем, у вас новое достижение! 🏆 Вы выполнили максимальную работу за тренировку. ',
+                reply_markup=ReplyKeyboardRemove())
+            data['delete_list'].append(msg.message_id)
+    msg = await message.answer(text=f"Если остались силы, можете выполнить ещё 5 подходов другого упражнения. Готовы?",
+                               reply_markup=yesno)
+    data['delete_list'].append(msg.message_id)
+    await state.update_data(delete_list=data['delete_list'])
+    await state.set_state(FSMTrener.workout_end)
+
+
+@router.message(F.text.lower().strip() == 'нет', StateFilter(FSMTrener.workout_end))
+async def end_workout(message: Message, bot: Bot, state: FSMContext, db: SQLiteDatabase):
+    data = await state.get_data()
+    db.update_cell(table='users', cell='coach_sub', cell_value=datetime.utcnow().isoformat(),
+                   key='user_id', key_value=message.from_user.id)
+    msg = await message.answer(text='До новых встреч!', reply_markup=ReplyKeyboardRemove())
+    logger.debug(f'after do novyh vstrech')
+    data['delete_list'].append(msg.message_id)
+    data['delete_list'].append(message.message_id)
+    await asyncio.sleep(10)
+    data['delete_list'] = await clear_delete_list(data['delete_list'], bot=bot, user_id=message.from_user.id)
+    logger.debug(f'after deleting list')
+    await state.update_data(delete_list=data['delete_list'])
+    await state.clear()
 
 
 @router.message(F.text.startswith('!='), F.text.strip()[2:].isdigit(), StateFilter(FSMTrener.workout))
@@ -629,90 +511,6 @@ async def add_white_list(message: Message, state: FSMContext, db: SQLiteDatabase
                                                                 one_time_keyboard=True, resize_keyboard=True))
     data['delete_list'].append(msg.message_id)
     await state.update_data(delete_list=data['delete_list'])
-
-
-@router.message(F.text, StateFilter(FSMTrener.workout_process))
-async def workout_process(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot):
-    data = await state.get_data()
-    data = await save_approach(data, db, message, data['approach'])
-
-    await state.update_data(done_workout=data['done_workout'])
-
-    data['delete_list'].append(message.message_id)
-    data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
-    if data['approach'] == 1:
-        msg_timer = await message.answer_animation(
-            animation=db.select_rows(table='multimedia', fetch='one', name='timer')['file_id'],
-            caption='Отдыхайте от 10 секунд до 5 минут...',
-            reply_markup=ReplyKeyboardRemove())
-        await state.update_data(msg_timer=msg_timer.message_id)
-    await asyncio.sleep(2)
-    msg = await message.answer(
-        text=f'Выполните подход {data["approach"] + 1} из {data["new_workout"][data["approach"]][1]} повторений '
-             f'и нажмите кнопку "Готово". Если вы сделали другое количество, напишите сколько.', reply_markup=ready)
-    data['delete_list'].append(msg.message_id)
-    if data['approach'] == 4:
-        data['delete_list'].append(data['msg_timer'])
-    # data = await run_timer(data, db, message, bot)
-    await state.update_data(delete_list=data['delete_list'])
-    await state.update_data(approach=data["approach"] + 1)
-    if data['approach'] == 4:
-        await state.set_state(FSMTrener.workout_done)
-    else:
-        await state.set_state(FSMTrener.workout_process)
-
-
-@router.message(F.text, StateFilter(FSMTrener.workout_done))
-async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot):
-    data = await state.get_data()
-    data['delete_list'].append(message.message_id)
-    data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
-    data = await save_approach(data, db, message, data['approach'])
-    await state.update_data(done_workout=data['done_workout'])
-
-    await message.answer(text=f"Тренировка сохранена: упражнение №{data['exercise_id']}, подходы "
-                              f"{' '.join(list(map(str, data['done_workout'])))}. "
-                              f"Рекомендованный перерыв между тренировками одного упражнения - от 2 до 7 дней. "
-                              f"Если перерыв будет более 7 дней, прогресс может отсутствовать.")
-    awards = await award_user(message.from_user.id, db)
-    logger.debug(f'{awards=}')
-    if awards['reps']:
-        if awards['work']:
-            msg = await message.answer(
-                text=f'🎉 Поздравляем, у вас новые достижения! 🏆🏆 Вы выполнили максимальную работу за тренировку, '
-                     f'и побили рекорд повторений в упражнении №{awards["reps"]}.',
-                reply_markup=ReplyKeyboardRemove())
-        else:
-            msg = await message.answer(
-                text=f'🎉 Поздравляем, у вас новое достижение! 🏆 Вы побили рекорд повторений в упражнении '
-                     f'№{awards["reps"]}.', reply_markup=ReplyKeyboardRemove())
-        data['delete_list'].append(msg.message_id)
-    else:
-        if awards['work']:
-            msg = await message.answer(
-                text=f'🎉 Поздравляем, у вас новое достижение! 🏆 Вы выполнили максимальную работу за тренировку. ',
-                reply_markup=ReplyKeyboardRemove())
-            data['delete_list'].append(msg.message_id)
-    msg = await message.answer(text=f"Если остались силы, можете выполнить ещё 5 подходов другого упражнения. Готовы?",
-                               reply_markup=yesno)
-    data['delete_list'].append(msg.message_id)
-    await state.update_data(delete_list=data['delete_list'])
-    await state.set_state(FSMTrener.workout_end)
-
-
-@router.message(F.text.lower().strip() == 'нет', StateFilter(FSMTrener.workout_end))
-async def end_workout(message: Message, bot: Bot, state: FSMContext, db: SQLiteDatabase):
-    data = await state.get_data()
-    db.update_cell(table='users', cell='coach_sub', cell_value=datetime.utcnow().isoformat(),
-                   key='user_id', key_value=message.from_user.id)
-    msg = await message.answer(text='До новых встреч!', reply_markup=ReplyKeyboardRemove())
-    data['delete_list'].append(msg.message_id)
-    data['delete_list'].append(message.message_id)
-    await asyncio.sleep(10)
-    for message_id in data['delete_list']:
-        await bot.delete_message(chat_id=message.from_user.id, message_id=message_id)
-    await state.update_data(delete_list=[])
-    await state.clear()
 
 
 @router.message(F.text.lower().strip() == 'напомнить через неделю')

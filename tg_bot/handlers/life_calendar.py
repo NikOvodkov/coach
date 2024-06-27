@@ -9,7 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ReplyKeyboardRemove, FSInputFile
 
 from logging_settings import logger
-from tg_bot.database.sqlite2 import SQLiteDatabase
+from tg_bot.database.sqlite import SQLiteDatabase
 from tg_bot.keyboards.life_calendar import yesno, geono
 from tg_bot.lexicon.life_calendar import LEXICON_RU
 from tg_bot.utils.life_calendar import generate_image_calendar

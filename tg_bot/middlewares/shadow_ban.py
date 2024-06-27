@@ -5,7 +5,7 @@ from aiogram.types import TelegramObject, User
 
 from logging_settings import logger
 from tg_bot.config import Config
-from tg_bot.database.sqlite2 import SQLiteDatabase
+from tg_bot.database.sqlite import SQLiteDatabase
 
 
 class ShadowBanMiddleware(BaseMiddleware):

@@ -5,7 +5,7 @@ from aiogram.types import Message
 
 from logging_settings import logger
 from tg_bot.config import load_config
-from tg_bot.database.sqlite2 import SQLiteDatabase
+from tg_bot.database.sqlite import SQLiteDatabase
 from tg_bot.filters.admin import IsAdmin
 from tg_bot.states.update_db import FSMUpdateDb
 

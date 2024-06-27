@@ -1,4 +1,4 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
 
 yesno = ReplyKeyboardMarkup(
     keyboard=[
@@ -78,6 +78,13 @@ muscle_groups = ReplyKeyboardMarkup(
         [KeyboardButton(text='Живот'), KeyboardButton(text='Спина')]
     ], one_time_keyboard=True, resize_keyboard=True
 )
+
+nokeyboard = ReplyKeyboardRemove()
+
+choose_exercise = ReplyKeyboardMarkup(
+    keyboard=[[KeyboardButton(text="Заменить"), KeyboardButton(text="Оставить")],
+              [KeyboardButton(text="Выбрать из списка")]],
+    one_time_keyboard=True, resize_keyboard=True)
 '''
 # ------- Создаем клавиатуру через ReplyKeyboardBuilder -------
 

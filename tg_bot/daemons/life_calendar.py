@@ -11,7 +11,7 @@ from aiogram.fsm.storage.base import StorageKey
 from aiogram.types import Message, ReplyKeyboardRemove, FSInputFile, ReplyKeyboardMarkup, KeyboardButton
 
 from logging_settings import logger
-from tg_bot.database.sqlite2 import SQLiteDatabase
+from tg_bot.database.sqlite import SQLiteDatabase
 from tg_bot.keyboards.life_calendar import yesno
 from tg_bot.states.life_calendar import FSMLifeCalendar
 from tg_bot.utils.life_calendar import generate_text_calendar, generate_image_calendar
