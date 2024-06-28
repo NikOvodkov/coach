@@ -110,7 +110,7 @@ async def gnrt_wrkt(user_id: int, db: SQLiteDatabase, old_ex: int = None, black_
     :return:
     """
     # Если воркаут на конкретное упражнение/тренировку:
-    if old_ex:
+    if old_ex is not None:
         logger.debug(f'{old_ex=}')
         approaches = db.select_filtered_sorted_rows(table='approaches', fetch='one',
                                                     sql2=f' ORDER BY approach_id DESC',

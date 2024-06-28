@@ -248,7 +248,7 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase,
         if len(data['black_list']) > 27:
             data['black_list'] = []
         logger.debug(f'{data["black_list"]=}')
-    data['new_workout'] = await gnrt_wrkt(message.from_user.id, db, black_list=data['black_list'])
+    data['new_workout'] = await gnrt_wrkt(user_id=message.from_user.id, db=db, black_list=data['black_list'])
     logger.debug(f'{data["new_workout"][0][0]=}')
     msg = await show_exercise(message, db, data["new_workout"][0][0], choose_exercise)
     data['delete_list'].append(msg.message_id)

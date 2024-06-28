@@ -95,7 +95,7 @@ async def main():
         # db.delete_table('users_base_long')
         # db.delete_rows('exercises', exercise_id=34)
         # db.delete_rows('exercises', exercise_id=35)
-        # db.delete_rows('exercises', exercise_id=36)
+        # db.delete_rows('exercises', exercise_id=31)
 
 
     except Exception as e:
