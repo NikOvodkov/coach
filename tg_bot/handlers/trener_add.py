@@ -22,6 +22,7 @@ router = Router()
 router.message.filter(IsAdmin(load_config('.env').tg_bot.admin_ids))
 
 
+# done
 @router.message(F.text.strip().lower() == 'да', StateFilter(FSMAdd.exit_add))
 @router.message(Command(commands='add'))
 async def start_add(message: Message, state: FSMContext, db: SQLiteDatabase):
@@ -48,6 +49,7 @@ async def start_add(message: Message, state: FSMContext, db: SQLiteDatabase):
     logger.debug('exit_start_add')
 
 
+# done
 @router.message(F.text.strip().isdigit(), StateFilter(FSMAdd.add_choose_type), MaterialType(types=[1]))
 @router.message(F.text.lower() == 'динамическое упражнение', StateFilter(FSMAdd.add_choose_type))
 async def add_choose_type(message: Message, state: FSMContext, db: SQLiteDatabase):
@@ -78,6 +80,8 @@ async def add_choose_type(message: Message, state: FSMContext, db: SQLiteDatabas
     await state.update_data(delete_list=data['delete_list'])
     await state.set_state(FSMAdd.type_exercise_1_a)
 
+
+# done
 @router.message(F.text.strip().isdigit(), StateFilter(FSMAdd.add_choose_type), MaterialType(types=[2]))
 @router.message(F.text.lower() == 'статическое упражнение', StateFilter(FSMAdd.add_choose_type))
 async def add_choose_type(message: Message, state: FSMContext, db: SQLiteDatabase):
@@ -111,6 +115,7 @@ async def add_choose_type(message: Message, state: FSMContext, db: SQLiteDatabas
     await state.set_state(FSMAdd.type_exercise_1_b)
 
 
+# done
 @router.message(F.text.strip().lower() == 'пропустить', StateFilter(FSMAdd.type_exercise_1_b))
 @router.message(F.photo, StateFilter(FSMAdd.type_exercise_1_b))
 async def type_exercise_1_b(message: Message, state: FSMContext, db: SQLiteDatabase):
@@ -150,6 +155,7 @@ async def type_exercise_1_b(message: Message, state: FSMContext, db: SQLiteDatab
     await state.set_state(FSMAdd.type_exercise_2)
 
 
+# done
 @router.message(F.animation, StateFilter(FSMAdd.type_exercise_1_b))
 async def type_exercise_1_ba(message: Message, state: FSMContext, db: SQLiteDatabase):
     data = await state.get_data()
@@ -173,6 +179,7 @@ async def type_exercise_1_ba(message: Message, state: FSMContext, db: SQLiteData
     await state.set_state(FSMAdd.type_exercise_2)
 
 
+# done
 @router.message(F.text.strip().lower() == 'пропустить', StateFilter(FSMAdd.type_exercise_1_a))
 @router.message(F.animation, StateFilter(FSMAdd.type_exercise_1_a))
 async def type_exercise_1_a(message: Message, state: FSMContext, db: SQLiteDatabase):

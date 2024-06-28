@@ -189,19 +189,25 @@ async def gnrt_wrkt(user_id: int, db: SQLiteDatabase, old_ex: int = None, black_
                 rare_exercise = min(exercises_voc, key=exercises_voc.get)
                 logger.debug(f'{rare_exercise=}')
             #  4. Создаём тренировку с выбранным упражнением, для этого находим предыдущий воркаут с ним.
-            workout_id = db.select_filtered_sorted_rows(table='approaches', fetch='one',
-                                                        sql2=f' ORDER BY approach_id DESC',
-                                                        user_id=user_id, exercise_id=rare_exercise)['workout_id']
-            logger.debug(f'{workout_id=}')
-            approaches = db.select_filtered_sorted_rows(table='approaches', fetch='all',
-                                                        sql2=f' ORDER BY number ASC',
-                                                        workout_id=workout_id)
-            logger.debug(f'{approaches=}')
-            old_wrkt = [Approach(rare_exercise, approach['dynamic'], False) if i in {0, 2, 3} else
-                        Approach(rare_exercise, approach['dynamic'], True)
-                        for i, approach in enumerate(approaches)]
-            logger.debug(f'{old_wrkt=}')
-            return generate_new_split_new(old_wrkt)
+                workout = db.select_filtered_sorted_rows(table='approaches', fetch='one',
+                                                         sql2=f' ORDER BY approach_id DESC',
+                                                         user_id=user_id, exercise_id=rare_exercise)['workout_id']
+                if workout:
+                    workout_id = workout['workout_id']
+                    logger.debug(f'{workout_id=}')
+                    approaches = db.select_filtered_sorted_rows(table='approaches', fetch='all',
+                                                                sql2=f' ORDER BY number ASC',
+                                                                workout_id=workout_id)
+                    logger.debug(f'{approaches=}')
+                    old_wrkt = [Approach(rare_exercise, approach['dynamic'], False) if i in {0, 2, 3} else
+                                Approach(rare_exercise, approach['dynamic'], True)
+                                for i, approach in enumerate(approaches)]
+                    logger.debug(f'{old_wrkt=}')
+                    return generate_new_split_new(old_wrkt)
+                else:
+                    return generate_new_split_new()
+            else:
+                return generate_new_split_new()
         else:
             logger.debug('no approaches no old_ex')
             # Если до этого ещё не было тренировок, то предлагается набор из самых простых упражнений на разные группы мышц,
