@@ -59,37 +59,36 @@ def generate_new_split(set_str: str) -> str:
 
 
 # Генерирует новый сплит из 5 подходов, даже если старого не было или в нём было другое число подходов
-def generate_new_split_new(old_split: list[Approach] = None) -> list[Approach]:
+def generate_new_split_new(old_split: list[Approach] = None, exercise_id: int = 4) -> list[Approach]:
     if old_split:
-        ex = old_split[0][0]
+        exercise_id = old_split[0][0]
         set_old = list(map(lambda x: x[1], old_split))
         for i in range(5 - len(set_old)):
             set_old.append(0)
     else:
-        ex = None
         set_old = [1, 1, 1, 1, 1]
     set_new = [0, 0, 0, 0, 0]
     new_split = [Approach(), Approach(), Approach(), Approach(), Approach()]
     # первый подход = половине от максимума на прошлой тренировке
     set_new[0] = max(1, math.floor(max(set_old) / 2))
-    new_split[0] = Approach(ex, set_new[0], False)
+    new_split[0] = Approach(exercise_id, set_new[0], False)
     # второй подход = максимуму+ на прошлой тренировке
     set_new[1] = max(set_old)
-    new_split[1] = Approach(ex, set_new[1], True)
+    new_split[1] = Approach(exercise_id, set_new[1], True)
     # третий подход = половине от максимума на прошлой тренировке + 1
     set_new[2] = math.ceil(max(set_old) / 2) + 1
-    new_split[2] = Approach(ex, set_new[2], False)
+    new_split[2] = Approach(exercise_id, set_new[2], False)
     # четвёртый подход = половине от максимума на прошлой тренировке
     set_new[3] = math.ceil(max(set_old) / 2)
-    new_split[3] = Approach(ex, set_new[3], False)
+    new_split[3] = Approach(exercise_id, set_new[3], False)
     # пятый подход
     set_new[4] = max(1, sum(set_old) - set_new[0] - set_new[1] - set_new[2] - set_new[3] + 1)
-    new_split[4] = Approach(ex, set_new[4], True)
+    new_split[4] = Approach(exercise_id, set_new[4], True)
     if set_new[4] > set_new[1] - 2:
         set_new[1] += 1
-        new_split[1] = Approach(ex, set_new[1], True)
+        new_split[1] = Approach(exercise_id, set_new[1], True)
         set_new[4] = max(1, sum(set_old) - set_new[0] - set_new[1] - set_new[2] - set_new[3] + 1)
-        new_split[4] = Approach(ex, set_new[4], True)
+        new_split[4] = Approach(exercise_id, set_new[4], True)
     return new_split
 
 
@@ -205,9 +204,12 @@ async def gnrt_wrkt(user_id: int, db: SQLiteDatabase, old_ex: int = None, black_
                     logger.debug(f'{old_wrkt=}')
                     return generate_new_split_new(old_wrkt)
                 else:
-                    return generate_new_split_new()
+                    return generate_new_split_new(exercise_id=rare_exercise)
             else:
-                return generate_new_split_new()
+                # Если до этого ещё не было тренировок, то предлагается набор из самых простых упражнений на разные группы мышц,
+                # так называемый входной тест: отжимания на коленях, гиперэкстензии, подъем ног, приседания, гусеница
+                return [Approach(4, 1, True), Approach(12, 1, True), Approach(24, 1, True),
+                        Approach(8, 1, True), Approach(27, 1, True)]
         else:
             logger.debug('no approaches no old_ex')
             # Если до этого ещё не было тренировок, то предлагается набор из самых простых упражнений на разные группы мышц,
