@@ -191,7 +191,7 @@ async def gnrt_wrkt(user_id: int, db: SQLiteDatabase, old_ex: int = None, black_
             #  4. Создаём тренировку с выбранным упражнением, для этого находим предыдущий воркаут с ним.
                 workout = db.select_filtered_sorted_rows(table='approaches', fetch='one',
                                                          sql2=f' ORDER BY approach_id DESC',
-                                                         user_id=user_id, exercise_id=rare_exercise)['workout_id']
+                                                         user_id=user_id, exercise_id=rare_exercise)
                 if workout:
                     workout_id = workout['workout_id']
                     logger.debug(f'{workout_id=}')
