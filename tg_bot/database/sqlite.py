@@ -110,27 +110,41 @@ class SQLiteDatabase:
         CREATE TABLE IF NOT EXISTS exercises (
                 exercise_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                 user_id INTEGER REFERENCES users (user_id),  /* id пользователя, внёсшего упражнение в базу */
-                type INTEGER, /*1-динамика/2-статика/3-разминка/4-заминка/5-тренировка/0-таймер*/
+                type INTEGER, /*1-динамика непарная/2-динамика парная/3-статика непарная/4-статика парная
+                              /5-разминка/6-заминка/7-тренировка/8-таймер*/
                 name VARCHAR(255) NOT NULL,  /* наименование упражнения (ёмкое, чёткое, подробное, но компактное) */
                 description VARCHAR,  /* подробное описание */
                 description_text_link VARCHAR,  /* ссылка на подробное описание упражнения */
                 description_video_link VARCHAR,  /* ссылка на подробное описание упражнения */
                 work REAL,  /* выполняемая в упражнении работа за 1 повторение на 1 кг веса спортсмена */
                 file_id VARCHAR(255),
-                file_unique_id VARCHAR(255)
+                file_unique_id VARCHAR(255),
+                arms REAL, /* доля работы в упражнении приходящаяся на руки */
+                legs REAL, /* доля работы в упражнении приходящаяся на ноги */
+                chest REAL, /* доля работы в упражнении приходящаяся на грудь */
+                abs REAL, /* доля работы в упражнении приходящаяся на живот */
+                back REAL, /* доля работы в упражнении приходящаяся на спину */
+                level_arms INTEGER, /* уровень сложности упражнения для мышц рук */
+                level_legs INTEGER, /* уровень сложности упражнения для мышц ног */
+                level_chest INTEGER, /* уровень сложности упражнения для мышц груди */
+                level_abs INTEGER, /* уровень сложности упражнения для мышц живота */
+                level_back INTEGER /* уровень сложности упражнения для мышц спины */
                 );
-        INSERT OR IGNORE INTO exercises (exercise_id, user_id, name, work, file_id, file_unique_id)
-                SELECT exercise_id, user_id, name, work, file_id, file_unique_id FROM exercises_base;
         '''
         self.execute(sql, commit=True, script=True)
 
     def add_exercise(self, user_id: int, type_: int, name: str, description: str = None, description_text_link: str = None,
-                     description_video_link: str = None, work: float = None, file_id: str = None, file_unique_id: str = None):
+                     description_video_link: str = None, work: float = None, file_id: str = None, file_unique_id: str = None,
+                     arms: float = None, legs: float = None, chest: float = None, abs_: float = None, back: float = None,
+                     level_arms: int = None, level_legs: int = None, level_chest: int = None,
+                     level_abs: int = None, level_back: int = None):
         sql = ('INSERT INTO exercises (user_id, type, name, description, '
-               'description_text_link, description_video_link, work, file_id, file_unique_id) '
+               'description_text_link, description_video_link, work, file_id, file_unique_id,'
+               'arms, legs, chest, abs_, back, level_arms, level_legs, level_chest, level_abs_, level_back) '
                'VALUES(?,?,?,?,?,?,?,?,?)')
-        parameters = (user_id, type_, name, description, description_text_link, description_video_link,
-                      work, file_id, file_unique_id)
+        parameters = (user_id, type_, name, description, description_text_link, description_video_link, work,
+                      file_id, file_unique_id, arms, legs, chest, abs_, back,
+                      level_arms, level_legs, level_chest, level_abs, level_back)
         self.execute(sql, parameters=parameters, commit=True)
 
     def create_table_materials(self):  # таблица содержит материалы, предложенные на модерацию
@@ -146,17 +160,24 @@ class SQLiteDatabase:
                 description_video_link VARCHAR,  /* ссылка на подробное описание упражнения */
                 file_id VARCHAR(255),
                 file_unique_id VARCHAR(255),
-                date VARCHAR(31) /* дата запроса модерации */
+                date VARCHAR(31), /* дата запроса модерации */
+                arms REAL, /* доля работы в упражнении приходящаяся на руки */
+                legs REAL, /* доля работы в упражнении приходящаяся на ноги */
+                chest REAL, /* доля работы в упражнении приходящаяся на грудь */
+                abs REAL, /* доля работы в упражнении приходящаяся на живот */
+                back REAL /* доля работы в упражнении приходящаяся на спину */
                 );
         '''
         self.execute(sql, commit=True)
 
     def add_material(self, user_id: int, type_: int, exercise_id: int = None, name: str = None, description: str = None,
-                     text: str = None, video: str = None, file_id: str = None, file_unique_id: str = None, date: str = None):
+                     text: str = None, video: str = None, file_id: str = None, file_unique_id: str = None, date: str = None,
+                     arms: float = None, legs: float = None, chest: float = None, abs_: float = None, back: float = None):
         sql = ('INSERT INTO materials (user_id, type, exercise_id, name, description, '
-               'description_text_link, description_video_link, file_id, file_unique_id, date) '
-               'VALUES(?,?,?,?,?,?,?,?,?,?)')
-        parameters = (user_id, type_, exercise_id, name, description, text, video, file_id, file_unique_id, date)
+               'description_text_link, description_video_link, file_id, file_unique_id, date, arms, legs, chest, abs, back) '
+               'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        parameters = (user_id, type_, exercise_id, name, description, text, video, file_id, file_unique_id, date,
+                      arms, legs, chest, abs_, back)
         logger.debug(f'{sql=} {parameters=}')
         self.execute(sql, parameters=parameters, commit=True)
 
@@ -187,19 +208,21 @@ class SQLiteDatabase:
         sql = '''
         CREATE TABLE IF NOT EXISTS muscles (
                 muscle_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                name VARCHAR(255) NOT NULL, /* имя мышцы */
+                name_ru VARCHAR(255) NOT NULL, /* имя мышцы */
+                name_en VARCHAR(255) NOT NULL, /* имя мышцы на английском языке*/
                 group_id INTEGER NOT NULL,
-                group_name VARCHAR(255) NOT NULL, /* имя мышечной группы */
+                group_name_ru VARCHAR(255) NOT NULL, /* имя мышечной группы */
+                group_name_en VARCHAR(255) NOT NULL, /* имя мышечной группы на английском языке*/
                 mass REAL /* относительная масса мышцы в общей мышечной массе туловища */
                 );
-        INSERT OR IGNORE INTO muscles (muscle_id, name, group_id, group_name, mass)
-        SELECT * FROM muscles_base;
         '''
         self.execute(sql, commit=True, script=True)
 
-    def add_muscle(self, muscle_id: int, name: str, group_id: int, group_name: str, mass: float):
-        sql = 'INSERT OR IGNORE INTO muscles (muscle_id, name, group_id, group_name, mass) VALUES(?,?,?,?,?)'
-        parameters = (muscle_id, name, group_id, group_name, mass)
+    def add_muscle(self, muscle_id: int, name_ru: str, name_en: str, group_id: int,
+                   group_name_ru: str, group_name_en: str, mass: float):
+        sql = ('INSERT OR IGNORE INTO muscles (muscle_id, name_ru, name_en, group_id, group_name_ru, group_name_en, mass) '
+               'VALUES(?,?,?,?,?,?,?)')
+        parameters = (muscle_id, name_ru, name_en, group_id, group_name_ru, group_name_en, mass)
         self.execute(sql, parameters=parameters, commit=True)
 
     def create_table_exercises_muscles(self):
@@ -212,8 +235,6 @@ class SQLiteDatabase:
                 level REAL, /* уровень сложности упражнения */
                 load REAL /* относительная загрузка мышечной группы в упражнении относительно всех мышц */
                 );
-        INSERT OR IGNORE INTO exercises_muscles (exercise_id, exercise_name, muscle_id, muscle_name, load)
-        SELECT * FROM exercises_muscles_base;
         '''
         self.execute(sql, commit=True, script=True)
 
@@ -371,12 +392,13 @@ class SQLiteDatabase:
         sql, parameters = self.format_args(sql, kwargs)
         return self.execute(sql + sql2, parameters, fetch=fetch, tuple_=tuple_)
 
+#  -- Сроковые значения в словаре cells должны быть в двойных кавычках!!! "'образец'"
     def update_cells(self, table, cells, **kwargs):
         sql = ', '.join([f'{cell}={cells[cell]}' for cell in cells])
         sql = f'UPDATE {table} SET {sql} WHERE '
         sql, parameters = self.format_args(sql, kwargs)
+        logger.debug(sql, parameters)
         return self.execute(sql, parameters, commit=True)
-
 
     def update_cell(self, table, cell, cell_value, key, key_value):
         sql = f'UPDATE {table} SET {cell}=? WHERE {key}=? '
@@ -475,3 +497,108 @@ class SQLiteDatabase:
 
     def add_ex_to_workouts(self):
         self.execute(sql='ALTER TABLE workouts ADD exercise_id INTEGER;', commit=True)
+
+    def change_muscles_table(self):
+        sql = '''
+    PRAGMA foreign_keys = 0;
+    CREATE TABLE sqlitestudio_temp_table AS SELECT *
+                                              FROM muscles;
+    DROP TABLE muscles;
+    CREATE TABLE muscles (
+        muscle_id     INTEGER       PRIMARY KEY AUTOINCREMENT
+                                    NOT NULL,
+        name_ru       VARCHAR (255) NOT NULL,
+        name_en       VARCHAR (255),
+        group_id      INTEGER       NOT NULL,
+        group_name_ru VARCHAR (255) NOT NULL,
+        group_name_en VARCHAR (255),
+        mass          REAL
+    );
+    INSERT INTO muscles (
+                            muscle_id,
+                            name_ru,
+                            group_id,
+                            group_name_ru,
+                            mass
+                        )
+                        SELECT muscle_id,
+                               name,
+                               group_id,
+                               group_name,
+                               mass
+                          FROM sqlitestudio_temp_table;
+    
+    CREATE TABLE sqlitestudio_temp_table0 AS SELECT *
+                                               FROM exercises_muscles;
+    DROP TABLE exercises_muscles;
+    CREATE TABLE exercises_muscles (
+        exercise_id   INTEGER       REFERENCES exercises (exercise_id),
+        exercise_name VARCHAR (255) REFERENCES exercises (name),
+        muscle_id     INTEGER       REFERENCES muscles (muscle_id),
+        muscle_name   VARCHAR (255) REFERENCES muscles (name_ru),
+        load          REAL,
+        level         REAL
+    );
+    INSERT INTO exercises_muscles (
+                                      exercise_id,
+                                      exercise_name,
+                                      muscle_id,
+                                      muscle_name,
+                                      load,
+                                      level
+                                  )
+                                  SELECT exercise_id,
+                                         exercise_name,
+                                         muscle_id,
+                                         muscle_name,
+                                         load,
+                                         level
+                                    FROM sqlitestudio_temp_table0;
+    DROP TABLE sqlitestudio_temp_table0;
+    DROP TABLE sqlitestudio_temp_table;
+    PRAGMA foreign_keys = 1;
+        '''
+        self.execute(sql, commit=True, script=True)
+        # self.update_cell_new(table='muscles', cell='name_en', cell_value='hands', name_ru='Руки')
+        # self.update_cell_new(table='muscles', cell='group_name_en', cell_value='hands', name_ru='Руки')
+        self.update_cells(table='muscles',
+                          cells={'name_en': "'arms'", 'group_name_en': "'arms'"},
+                          name_ru='Руки')
+        self.update_cells(table='muscles',
+                          cells={'name_en': "'legs'", 'group_name_en': "'legs'"},
+                          name_ru='Ноги')
+        self.update_cells(table='muscles',
+                          cells={'name_en': "'chest'", 'group_name_en': "'chest'"},
+                          name_ru='Грудь')
+        self.update_cells(table='muscles',
+                          cells={'name_en': "'abs'", 'group_name_en': "'abs'"},
+                          name_ru='Живот')
+        self.update_cells(table='muscles',
+                          cells={'name_en': "'back'", 'group_name_en': "'back'"},
+                          name_ru='Спина')
+
+    def add_muscles_to_exercises(self):
+        sql = '''
+        ALTER TABLE exercises ADD arms REAL;
+        ALTER TABLE exercises ADD legs REAL;
+        ALTER TABLE exercises ADD chest REAL;
+        ALTER TABLE exercises ADD abs REAL;
+        ALTER TABLE exercises ADD back REAL;
+        ALTER TABLE exercises ADD level_arms INTEGER;
+        ALTER TABLE exercises ADD level_legs INTEGER;
+        ALTER TABLE exercises ADD level_chest INTEGER;
+        ALTER TABLE exercises ADD level_abs INTEGER;
+        ALTER TABLE exercises ADD level_back INTEGER;
+        ALTER TABLE materials ADD arms REAL;
+        ALTER TABLE materials ADD legs REAL;
+        ALTER TABLE materials ADD chest REAL;
+        ALTER TABLE materials ADD abs REAL;
+        ALTER TABLE materials ADD back REAL;
+        '''
+        self.execute(sql, commit=True, script=True)
+        exercises_muscles = self.select_table(table='exercises_muscles')
+        for em in exercises_muscles:
+            logger.debug(f'{em["exercise_name"]=}')
+            cell_name = self.select_rows(table='muscles', fetch='one', name_ru=em['muscle_name'])['name_en']
+            logger.debug(f'{cell_name=}')
+            self.update_cell_new(table='exercises', cell=cell_name, cell_value=em['load'], exercise_id=em['exercise_id'])

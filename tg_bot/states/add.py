@@ -17,6 +17,8 @@ class FSMAdd(StatesGroup):
     type_workout_1 = State()  # Добавляем тренировку
     type_workout_2 = State()  # Добавляем тренировку
     type_timer = State()  # Добавляем таймер
+    add_work_1 = State()  # Выбор типа добавляемого материала
+    add_work_2 = State()  # Выбор типа добавляемого материала
     exit_add = State()  # Выходим из режима добавления
     moderate_new = State()  # Режим модерации нового
     moderate_update = State()  # Режим модерации обновления

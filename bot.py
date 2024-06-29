@@ -12,7 +12,7 @@ from tg_bot.config import load_config, Config
 from tg_bot.daemons.life_calendar import send_life_calendar
 
 from tg_bot.database.sqlite import SQLiteDatabase
-from tg_bot.handlers import a_user, a_other, a_admin, atomy, gsheet, life_calendar, update_db_sqlite, trener, trener_add, energy_balance, trener_moderate
+from tg_bot.handlers import a_user, a_other, a_admin, atomy, gsheet, life_calendar, update_db_sqlite, trener, trener_add, energy_balance, trener_moderate, coach_add
 from tg_bot.middlewares.shadow_ban import ShadowBanMiddleware
 from tg_bot.middlewares.throttling import ThrottlingMiddleware
 from tg_bot.services.setting_commands import force_reset_all_commands, set_default_commands, set_admins_commands, set_all_groups_commands, set_all_chat_admins_commands, set_all_private_commands
@@ -97,6 +97,8 @@ async def main():
         # db.delete_rows('exercises', exercise_id=35)
         # db.delete_rows('exercises', exercise_id=31)
 
+        db.change_muscles_table()
+        db.add_muscles_to_exercises()
 
     except Exception as e:
         logger.exception(e)
@@ -125,7 +127,7 @@ async def main():
     logger.info('Подключаем роутеры')
     dp.include_routers(a_admin.router,
                        trener_moderate.router,
-                       trener_add.router,
+                       coach_add.router,
                        update_db_sqlite.router,
                        energy_balance.router,
                        a_user.router,
