@@ -34,10 +34,10 @@ async def start_add(message: Message, state: FSMContext):
                                     'иначе материал не пройдёт модерацию. \n'
                                     'Для выборочного редактирования полей существующего материала, напишите его номер:',
                                reply_markup=ReplyKeyboardMarkup(
-                                   keyboard=[[KeyboardButton(text='Динамическое непарное упражнение')],
-                                             [KeyboardButton(text='Динамическое парное упражнение')],
-                                             [KeyboardButton(text='Статическое непарное упражнение')],
-                                             [KeyboardButton(text='Статическое парное упражнение')],
+                                   keyboard=[[KeyboardButton(text='Динамическое НЕпарное упр-е'),
+                                             KeyboardButton(text='Динамическое ПАРНОЕ упр-е')],
+                                             [KeyboardButton(text='Статическое НЕпарное упр-е'),
+                                             KeyboardButton(text='Статическое ПАРНОЕ упр-е')],
                                              [KeyboardButton(text='Разминка'), KeyboardButton(text='Заминка')],
                                              [KeyboardButton(text='Тренировка'), KeyboardButton(text='Таймер')]],
                                    one_time_keyboard=True, resize_keyboard=True))
@@ -54,10 +54,10 @@ async def type_exercise_1_b(message: Message, state: FSMContext, db: SQLiteDatab
     if 'exercise_id' in data:
         db.add_material(user_id=message.from_user.id, type_=data['type'], name=message.caption, exercise_id=data['exercise_id'],
                         file_id=message.photo[-1].file_id, file_unique_id=file_unique_id,
-                        date=datetime.utcnow().isoformat())
+                        date=datetime.utcnow().isoformat(), media_type='photo')
     else:
         db.add_material(user_id=message.from_user.id, type_=data['type'], name=message.caption, file_id=message.photo[-1].file_id,
-                        file_unique_id=file_unique_id, date=datetime.utcnow().isoformat())
+                        file_unique_id=file_unique_id, date=datetime.utcnow().isoformat(), media_type='photo')
     msg = await message.answer(text='Изображение сохранено. Пришлите ссылку на публичное видео с русской озвучкой, '
                                     'где подробно объясняется и показывается, как выполняется данное упражнение, '
                                     'какие могут быть нюансы, ошибки и противопоказания:',
@@ -76,10 +76,10 @@ async def type_exercise_1_a(message: Message, state: FSMContext, db: SQLiteDatab
     if 'exercise_id' in data:
         db.add_material(user_id=message.from_user.id, type_=data['type'], name=message.caption, exercise_id=data['exercise_id'],
                         file_id=message.animation.file_id, file_unique_id=file_unique_id,
-                        date=datetime.utcnow().isoformat())
+                        date=datetime.utcnow().isoformat(), media_type='animation')
     else:
         db.add_material(user_id=message.from_user.id, type_=data['type'], name=message.caption, file_id=message.animation.file_id,
-                        file_unique_id=file_unique_id, date=datetime.utcnow().isoformat())
+                        file_unique_id=file_unique_id, date=datetime.utcnow().isoformat(), media_type='animation')
     msg = await message.answer(text='Анимация сохранена. Пришлите ссылку на публичное видео с русской озвучкой, '
                                     'где подробно объясняется и показывается, как выполняется данное упражнение, '
                                     'какие могут быть нюансы, ошибки и противопоказания:',
@@ -98,10 +98,10 @@ async def type_exercise_1_ba(message: Message, state: FSMContext, db: SQLiteData
     if 'exercise_id' in data:
         db.add_material(user_id=message.from_user.id, type_=data['type'], name=message.caption, exercise_id=data['exercise_id'],
                         file_id=message.animation.file_id, file_unique_id=file_unique_id,
-                        date=datetime.utcnow().isoformat())
+                        date=datetime.utcnow().isoformat(), media_type='animation')
     else:
         db.add_material(user_id=message.from_user.id, type_=data['type'], name=message.caption, file_id=message.animation.file_id,
-                        file_unique_id=file_unique_id, date=datetime.utcnow().isoformat())
+                        file_unique_id=file_unique_id, date=datetime.utcnow().isoformat(), media_type='animation')
     msg = await message.answer(text='Анимация сохранена. Пришлите ссылку на публичное видео с русской озвучкой, '
                                     'где подробно объясняется и показывается, как выполняется данное упражнение, '
                                     'какие могут быть нюансы, ошибки и противопоказания:',
@@ -161,7 +161,7 @@ async def type_exercise_3(message: Message, state: FSMContext, db: SQLiteDatabas
 
 @router.message(F.text.strip().lower() == 'нет', StateFilter(FSMAdd.add_work_2))
 @router.message(F.text, StateFilter(FSMAdd.type_exercise_4))
-async def type_exercise_4(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot, config: Config):
+async def type_exercise_4(message: Message, state: FSMContext, db: SQLiteDatabase):
     data = await state.get_data()
     data['delete_list'].append(message.message_id)
     if (message.text.strip().lower() != 'нет') and (message.text.strip().lower() != 'пропустить'):
@@ -188,11 +188,11 @@ async def type_workout_1(message: Message, state: FSMContext, db: SQLiteDatabase
     if 'exercise_id' in data:
         db.add_material(user_id=message.from_user.id, type_=data['type'], name=message.caption,
                         exercise_id=data['exercise_id'], file_id=message.video.file_id, file_unique_id=file_unique_id,
-                        date=datetime.utcnow().isoformat())
+                        date=datetime.utcnow().isoformat(), media_type='video')
     else:
         db.add_material(user_id=message.from_user.id, type_=data['type'], name=message.caption,
                         file_id=message.video.file_id, file_unique_id=file_unique_id,
-                        date=datetime.utcnow().isoformat())
+                        date=datetime.utcnow().isoformat(), media_type='video')
     msg = await message.answer(text='Видео сохранено. Коротко опишите содержание и особенности упражнений в видео. '
                                     'Старайтесь писать грамотно, можно подготовить текст заранее и скопировать сюда.',
                                reply_markup=ReplyKeyboardRemove())
@@ -204,7 +204,7 @@ async def type_workout_1(message: Message, state: FSMContext, db: SQLiteDatabase
 
 @router.message(F.text.strip().lower() == 'нет', StateFilter(FSMAdd.add_work_2))
 @router.message(F.text, StateFilter(FSMAdd.type_workout_2))
-async def type_workout_2(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot, config: Config):
+async def type_workout_2(message: Message, state: FSMContext, db: SQLiteDatabase):
     data = await state.get_data()
     data['delete_list'].append(message.message_id)
     if message.text.strip().lower() != 'нет':
@@ -224,23 +224,26 @@ async def type_workout_2(message: Message, state: FSMContext, db: SQLiteDatabase
 
 
 @router.message(F.text.strip().isdigit(), StateFilter(FSMAdd.add_work_1))
-async def add_work_1(message: Message, state: FSMContext, db: SQLiteDatabase):
+async def add_work_1(message: Message, state: FSMContext):
     data = await state.get_data()
+    data['work'][data['keys'][0]] = int(message.text)
+    data['keys'].pop(0)
     data['delete_list'].append(message.message_id)
     await asyncio.sleep(1)
     if len(data['keys']) > 0:
-        data['work'][data['keys'][0]] = int(message.text)
-        data['keys'].pop(0)
+        logger.debug(f'{data["keys"]=}')
         msg = await message.answer(text=f'Укажите ЦЕЛОЕ число процентов от 0 до 100, приходящихся на {data["keys"][0]}:',
                                    reply_markup=ReplyKeyboardRemove())
         await state.set_state(FSMAdd.add_work_1)
     else:
-        msg = await message.answer(text=f'{", ".join([key + "-" + data["work"][key] for key in data["work"]])} Верно?',
+        logger.debug(f'summiruem {data["work"]=}')
+        msg = await message.answer(text=f'{", ".join([key + "-" + str(data["work"][key]) for key in data["work"]])}, '
+                                        f'итого в сумме {sum(data["work"].values())}%. Верно?',
                                    reply_markup=yesno)
         await state.set_state(FSMAdd.add_work_2)
     data['delete_list'].append(msg.message_id)
     await state.update_data(delete_list=data['delete_list'])
-    await state.update_data(work=data['keys'])
+    await state.update_data(keys=data['keys'])
     await state.update_data(work=data['work'])
 
 
@@ -272,12 +275,12 @@ async def type_timer(message: Message, state: FSMContext, db: SQLiteDatabase, bo
     if 'exercise_id' in data:
         db.add_material(user_id=message.from_user.id, type_=data['type'], name=message.caption,
                         exercise_id=data['exercise_id'], file_id=message.animation.file_id, file_unique_id=file_unique_id,
-                        date=date)
+                        date=date, media_type='animation')
     else:
         logger.debug('enter_add_timer_to_db')
         db.add_material(user_id=message.from_user.id, type_=data['type'], name=message.caption,
                         file_id=message.animation.file_id, file_unique_id=file_unique_id,
-                        date=date)
+                        date=date, media_type='animation')
     logger.debug('before_message')
     await bot.send_message(config.tg_bot.admin_ids[0], text='Новый материал на модерацию: /moderate_material')
     msg = await message.answer(text='Анимация сохранена. Материал отправлен на модерацию. Добавить ещё материал?',
@@ -289,7 +292,7 @@ async def type_timer(message: Message, state: FSMContext, db: SQLiteDatabase, bo
 
 
 @router.message(F.text.strip().lower() == 'нет', StateFilter(FSMAdd.exit_add))
-async def exit_add(message: Message, state: FSMContext, bot: Bot, db: SQLiteDatabase):
+async def exit_add(message: Message, state: FSMContext, bot: Bot):
     data = await state.get_data()
     data['delete_list'].append(message.message_id)
     await clear_delete_list(data['delete_list'], bot, message.from_user.id)
@@ -297,8 +300,9 @@ async def exit_add(message: Message, state: FSMContext, bot: Bot, db: SQLiteData
 
 
 #  --ONLY ADD--  ###############################################################################
-@router.message(F.text.lower().strip().startswidth() == 'динамическое', StateFilter(FSMAdd.add_choose_type))
+@router.message(F.text.lower().strip().startswith('динамическое'), StateFilter(FSMAdd.add_choose_type))
 async def add_choose_type(message: Message, state: FSMContext):
+    logger.debug('enter add_choose_type dynamic')
     data = await state.get_data()
     data['delete_list'].append(message.message_id)
     msg = await message.answer(text='Пришлите анимацию в формате gif, которая демонстрирует выполнение упражнения. '
@@ -309,14 +313,14 @@ async def add_choose_type(message: Message, state: FSMContext):
                                reply_markup=ReplyKeyboardRemove())
     data['delete_list'].append(msg.message_id)
     await state.update_data(delete_list=data['delete_list'])
-    if message.text.lower().strip() == 'динамическое непарное упражнение':
+    if message.text.lower().strip().startswith('динамическое непарное'):
         await state.update_data(type=1)
-    elif message.text.lower().strip() == 'динамическое парное упражнение':
+    elif message.text.lower().strip().startswith('динамическое парное'):
         await state.update_data(type=2)
     await state.set_state(FSMAdd.type_exercise_1_a)
 
 
-@router.message(F.text.lower().strip().startswidth() == 'статическое', StateFilter(FSMAdd.add_choose_type))
+@router.message(F.text.lower().strip().startswith('статическое'), StateFilter(FSMAdd.add_choose_type))
 async def add_choose_type(message: Message, state: FSMContext):
     data = await state.get_data()
     data['delete_list'].append(message.message_id)
@@ -329,9 +333,9 @@ async def add_choose_type(message: Message, state: FSMContext):
                                reply_markup=ReplyKeyboardRemove())
     data['delete_list'].append(msg.message_id)
     await state.update_data(delete_list=data['delete_list'])
-    if message.text.lower().strip() == 'статическое непарное упражнение':
+    if message.text.lower().strip().startswith('статическое непарное'):
         await state.update_data(type=3)
-    elif message.text.lower().strip() == 'статическое парное упражнение':
+    elif message.text.lower().strip().startswith('статическое парное'):
         await state.update_data(type=4)
     await state.set_state(FSMAdd.type_exercise_1_b)
 
@@ -448,7 +452,7 @@ async def type_exercise_1_a(message: Message, state: FSMContext, db: SQLiteDatab
 
 
 @router.message(F.text.strip().isdigit(), StateFilter(FSMAdd.add_choose_type), MaterialType(types=[5, 6, 7]))
-async def add_choose_type(message: Message, state: FSMContext, db: SQLiteDatabase, cell: int):
+async def add_choose_type(message: Message, state: FSMContext, cell: int):
     data = await state.get_data()
     logger.debug(f'MaterialType 5 6 7 {cell=}')
     data['delete_list'].append(message.message_id)

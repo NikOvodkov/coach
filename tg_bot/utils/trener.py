@@ -158,10 +158,13 @@ async def gnrt_wrkt(user_id: int, db: SQLiteDatabase, old_ex: int = None, black_
             logger.debug(f'{min_cell=}')
             #  3. Находим упражнения на нужную мышечную группу, с загрузкой > 0.2. Выбираем то, которое реже всего
             #  встречалось в истории тренировок за последний месяц и отсутствует в постоянном и временном чёрных списках.
-            muscle_names = {'arms': 'Руки', 'legs': 'Ноги', 'chest': 'Грудь', 'abs': 'Живот', 'back': 'Спина'}
-            exercises = db.select_filtered_sorted_rows(table='exercises_muscles', fetch='all',
-                                                       sql2=f' AND load > 0.2 ORDER BY exercise_id ASC',
-                                                       muscle_name=muscle_names[min_cell])
+            # muscle_names = {'arms': 'Руки', 'legs': 'Ноги', 'chest': 'Грудь', 'abs': 'Живот', 'back': 'Спина'}
+            # exercises = db.select_filtered_sorted_rows(table='exercises_muscles', fetch='all',
+            #                                            sql2=f' AND load > 0.2 ORDER BY exercise_id ASC',
+            #                                            muscle_name=muscle_names[min_cell])
+            exercises = db.select_filtered_sorted_rows(table='exercises', fetch='all',
+                                                       sql2=f' AND {min_cell} > 0.2 ORDER BY exercise_id ASC',
+                                                       type=1)
             logger.debug(f'exercises_muscles {exercises=}')
             exercises_voc = {}
             for exercise in exercises:

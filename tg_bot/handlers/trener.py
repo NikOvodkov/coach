@@ -308,16 +308,18 @@ async def start_trener(message: Message, state: FSMContext, db: SQLiteDatabase, 
         for exercise in exercises_table:
             exercise_list = db.select_rows(table='exercises_users', fetch='one',
                                            exercise_id=exercise['exercise_id'], user_id=message.from_user.id)
+            exercise_type = db.select_rows(table='exercises', fetch='one', exercise_id=exercise['exercise_id'])
             logger.debug(f'{exercise_list=}')
-            if exercise_list:
-                if exercise_list['list'] == 1:
-                    captions.append(('💚' + str(exercise['exercise_id'])).rjust(3, '⠀') + ' ' + exercise['name'])
-                elif exercise_list['list'] == 0:
-                    captions.append(('⛔' + str(exercise['exercise_id'])).rjust(3, '⠀') + ' ' + exercise['name'])
+            if exercise_type and exercise_type['type'] in [1, 2]:
+                if exercise_list:
+                    if exercise_list['list'] == 1:
+                        captions.append(('💚' + str(exercise['exercise_id'])).rjust(3, '⠀') + ' ' + exercise['name'])
+                    elif exercise_list['list'] == 0:
+                        captions.append(('⛔' + str(exercise['exercise_id'])).rjust(3, '⠀') + ' ' + exercise['name'])
+                    else:
+                        captions.append('  ' + str(exercise['exercise_id']).rjust(3, '⠀') + ' ' + exercise['name'])
                 else:
                     captions.append('  ' + str(exercise['exercise_id']).rjust(3, '⠀') + ' ' + exercise['name'])
-            else:
-                captions.append('  ' + str(exercise['exercise_id']).rjust(3, '⠀') + ' ' + exercise['name'])
         msg = await message.answer(text='\n'.join(captions), reply_markup=ReplyKeyboardRemove())
         await state.set_state(FSMTrener.workout)
     else:
@@ -333,8 +335,6 @@ async def start_trener(message: Message, state: FSMContext, db: SQLiteDatabase, 
                                reply_markup=ReplyKeyboardRemove())
     data['delete_list'].append(msg.message_id)
     await state.update_data(delete_list=data['delete_list'])
-
-
 
 
 @router.message(F.text, StateFilter(FSMTrener.workout_process))

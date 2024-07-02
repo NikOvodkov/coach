@@ -128,7 +128,8 @@ class SQLiteDatabase:
                 level_legs INTEGER, /* уровень сложности упражнения для мышц ног */
                 level_chest INTEGER, /* уровень сложности упражнения для мышц груди */
                 level_abs INTEGER, /* уровень сложности упражнения для мышц живота */
-                level_back INTEGER /* уровень сложности упражнения для мышц спины */
+                level_back INTEGER, /* уровень сложности упражнения для мышц спины */
+                media_type VARCHAR(31) /*тип медиаматериала (фото/видео/анимация) */
                 );
         '''
         self.execute(sql, commit=True, script=True)
@@ -137,14 +138,14 @@ class SQLiteDatabase:
                      description_video_link: str = None, work: float = None, file_id: str = None, file_unique_id: str = None,
                      arms: float = None, legs: float = None, chest: float = None, abs_: float = None, back: float = None,
                      level_arms: int = None, level_legs: int = None, level_chest: int = None,
-                     level_abs: int = None, level_back: int = None):
+                     level_abs: int = None, level_back: int = None, media_type: str = None):
         sql = ('INSERT INTO exercises (user_id, type, name, description, '
                'description_text_link, description_video_link, work, file_id, file_unique_id,'
-               'arms, legs, chest, abs_, back, level_arms, level_legs, level_chest, level_abs_, level_back) '
-               'VALUES(?,?,?,?,?,?,?,?,?)')
+               'arms, legs, chest, abs_, back, level_arms, level_legs, level_chest, level_abs_, level_back, media_type) '
+               'VALUES(?,?,?,?,?,?,?,?,?,?)')
         parameters = (user_id, type_, name, description, description_text_link, description_video_link, work,
                       file_id, file_unique_id, arms, legs, chest, abs_, back,
-                      level_arms, level_legs, level_chest, level_abs, level_back)
+                      level_arms, level_legs, level_chest, level_abs, level_back, media_type)
         self.execute(sql, parameters=parameters, commit=True)
 
     def create_table_materials(self):  # таблица содержит материалы, предложенные на модерацию
@@ -165,19 +166,22 @@ class SQLiteDatabase:
                 legs REAL, /* доля работы в упражнении приходящаяся на ноги */
                 chest REAL, /* доля работы в упражнении приходящаяся на грудь */
                 abs REAL, /* доля работы в упражнении приходящаяся на живот */
-                back REAL /* доля работы в упражнении приходящаяся на спину */
+                back REAL, /* доля работы в упражнении приходящаяся на спину */
+                media_type VARCHAR(31) /*тип медиаматериала (фото/видео/анимация) */
                 );
         '''
         self.execute(sql, commit=True)
 
     def add_material(self, user_id: int, type_: int, exercise_id: int = None, name: str = None, description: str = None,
                      text: str = None, video: str = None, file_id: str = None, file_unique_id: str = None, date: str = None,
-                     arms: float = None, legs: float = None, chest: float = None, abs_: float = None, back: float = None):
+                     arms: float = None, legs: float = None, chest: float = None, abs_: float = None, back: float = None,
+                     media_type: str = None):
         sql = ('INSERT INTO materials (user_id, type, exercise_id, name, description, '
-               'description_text_link, description_video_link, file_id, file_unique_id, date, arms, legs, chest, abs, back) '
-               'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+               'description_text_link, description_video_link, file_id, file_unique_id, '
+               'date, arms, legs, chest, abs, back, media_type) '
+               'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
         parameters = (user_id, type_, exercise_id, name, description, text, video, file_id, file_unique_id, date,
-                      arms, legs, chest, abs_, back)
+                      arms, legs, chest, abs_, back, media_type)
         logger.debug(f'{sql=} {parameters=}')
         self.execute(sql, parameters=parameters, commit=True)
 
@@ -602,3 +606,11 @@ class SQLiteDatabase:
             cell_name = self.select_rows(table='muscles', fetch='one', name_ru=em['muscle_name'])['name_en']
             logger.debug(f'{cell_name=}')
             self.update_cell_new(table='exercises', cell=cell_name, cell_value=em['load'], exercise_id=em['exercise_id'])
+
+    def add_media_type(self):
+        sql = '''
+        ALTER TABLE exercises ADD media_type VARCHAR(31);
+        ALTER TABLE materials ADD media_type VARCHAR(31);
+        '''
+        self.execute(sql, commit=True, script=True)
+

@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 
 from aiogram import Router, F, Bot
@@ -19,54 +20,66 @@ router = Router()
 router.message.filter(IsAdmin(load_config('.env').tg_bot.admin_ids))
 
 
-@router.message(F.text.strip().lower() == 'да', StateFilter(FSMAdd.exit_add), NeedModerating())
+@router.message(F.text.strip().lower() == 'да', StateFilter(FSMAdd.exit_moderate), NeedModerating())
 @router.message(Command(commands='moderate_material'), NeedModerating())
-async def moderate_material(message: Message, state: FSMContext, db: SQLiteDatabase, row: Any, bot: Bot):
+async def moderate_material(message: Message, state: FSMContext, db: SQLiteDatabase, row: Any):
     logger.debug('moderate_material_enter')
     data = await state.get_data()
     logger.debug(f'{data=}')
     data['delete_list'] = []
     data['delete_list'].append(message.message_id)
     logger.debug(f'{row["exercise_id"]=}')
-    data['row'] = db.select_table('materials')[0]
+    # data['row'] = db.select_table('materials')[0]
     if row['exercise_id']:
         oldrow = db.select_rows(table='exercises', fetch='one', exercise_id=row['exercise_id'])
-        msg = await message.answer_document(document=oldrow["file_id"], caption='Текущая версия')
+        if oldrow['media_type'] == 'photo':
+            msg = await message.answer_photo(photo=oldrow["file_id"], caption='Текущая версия')
+        else:
+            msg = await message.answer_document(document=oldrow["file_id"], caption='Текущая версия')
         data['delete_list'].append(msg.message_id)
-        msg = await message.answer_document(document=row["file_id"], caption='На модерацию')
+        if row['media_type'] == 'photo':
+            msg = await message.answer_photo(photo=row["file_id"], caption='На модерацию')
+        else:
+            msg = await message.answer_document(document=row["file_id"], caption='На модерацию')
         data['delete_list'].append(msg.message_id)
         msg = await message.answer(text=f'Текущая версия:\n'
-                                        f'{oldrow["type"]=} {oldrow["name"]=} {oldrow["description"]=} '
+                                        f'{oldrow["type"]=} {oldrow["name"]=} \n{oldrow["description"]=} \n'
                                         f'{oldrow["description_text_link"]=} {oldrow["description_video_link"]=}'
-                                        f'На модерацию:\n'
-                                        f'{row["type"]=} {row["name"]=} {row["description"]=} '
+                                        f'\nНа модерацию:\n'
+                                        f'{row["type"]=} {row["name"]=} \n{row["description"]=} \n'
                                         f'{row["description_text_link"]=} {row["description_video_link"]=}\n'
-                                        f'Принимаем, отклоняем, принимаем частично?',
+                                        f'Принимаем, отклоняем, принимаем частично указанные столбцы?',
                                    reply_markup=ReplyKeyboardRemove())
         await state.set_state(FSMAdd.moderate_update)
     else:
-        logger.debug(f'before_answer_doc {row["file_id"]=}')
-        msg = await message.answer_document(row["file_id"])
+        logger.debug(f'before_answer_doc {row["media_type"]=}')
+        if row['media_type'] == 'photo':
+            msg = await message.answer_photo(row["file_id"])
+        else:
+            msg = await message.answer_document(row["file_id"])
         data['delete_list'].append(msg.message_id)
-        msg = await message.answer(text=f'{row["type"]=} {row["name"]=} {row["description"]=} '
+        msg = await message.answer(text=f'{row["type"]=} {row["name"]=} \n{row["description"]=} \n'
                                         f'{row["description_text_link"]=} {row["description_video_link"]=}\n'
                                         f'Принимаем или отклоняем?',
                                    reply_markup=ReplyKeyboardRemove())
         await state.set_state(FSMAdd.moderate_new)
     data['delete_list'].append(msg.message_id)
     await state.update_data(delete_list=data['delete_list'])
-    await state.update_data(row=data['row'])
+    await state.update_data(row=dict(row))
+    state_ = await state.get_state()
+    logger.debug(f'{state_=}')
 
 
-@router.message(F.text, StateFilter(FSMAdd.moderate_new), NeedModerating())
-async def moderate_new(message: Message, state: FSMContext, db: SQLiteDatabase, row: Any, bot: Bot):
+@router.message(F.text, StateFilter(FSMAdd.moderate_new))
+async def moderate_new(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot):
     logger.debug('moderate_new')
     data = await state.get_data()
+    row = data['row']
     data['delete_list'] = []
     data['delete_list'].append(message.message_id)
     # materials = db.select_table('materials')
     if message.text.strip().lower().startswith('принимаем'):
-        await bot.send_message(chat_id=row['user_id'], text=message.text)
+        await bot.send_message(chat_id=data['row']['user_id'], text=message.text)
         db.add_exercise(user_id=row['user_id'], type_=row['type'], name=row['name'], description=row['description'],
                         description_text_link=row['description_text_link'], description_video_link=row['description_video_link'],
                         file_id=row['file_id'], file_unique_id=row['file_unique_id'])
@@ -77,21 +90,22 @@ async def moderate_new(message: Message, state: FSMContext, db: SQLiteDatabase, 
         else:
             msg = await message.answer(text='Материал внесен в базу, проверить наличие других обновлений на модерацию?',
                                        reply_markup=yesno)
-            await state.set_state(FSMAdd.exit_add)
+            await state.set_state(FSMAdd.exit_moderate)
         db.delete_rows(table='materials', material_id=row['material_id'])
         data['delete_list'].append(msg.message_id)
     elif message.text.strip().lower().startswith('отклоняем'):
+        logger.debug(f'row["user_id"]=')
         await bot.send_message(chat_id=row['user_id'], text=message.text)
         msg = await message.answer(text='Материал отклонен, проверить наличие других обновлений на модерацию?',
                                    reply_markup=yesno)
         db.delete_rows(table='materials', material_id=row['material_id'])
         data['delete_list'].append(msg.message_id)
-        await state.set_state(FSMAdd.exit_add)
+        await state.set_state(FSMAdd.exit_moderate)
     await state.update_data(delete_list=data['delete_list'])
 
 
-@router.message(F.text.strip().lower(), StateFilter(FSMAdd.moderate_add_work), NeedModerating())
-async def moderate_add_work(message: Message, state: FSMContext, db: SQLiteDatabase, row: Any, bot: Bot):
+@router.message(F.text.strip().lower(), StateFilter(FSMAdd.moderate_add_work))
+async def moderate_add_work(message: Message, state: FSMContext, db: SQLiteDatabase):
     data = await state.get_data()
     logger.debug(f'moderate_add_work {data["row"]["exercise_id"]=}')
     data['delete_list'].append(message.message_id)
@@ -99,14 +113,15 @@ async def moderate_add_work(message: Message, state: FSMContext, db: SQLiteDatab
     msg = await message.answer(text='Работа внесена в базу, проверить наличие других обновлений на модерацию?',
                                reply_markup=yesno)
     data['delete_list'].append(msg.message_id)
-    await state.set_state(FSMAdd.exit_add)
+    await state.set_state(FSMAdd.exit_moderate)
     await state.update_data(delete_list=data['delete_list'])
 
 
-@router.message(F.text, StateFilter(FSMAdd.moderate_update), NeedModerating())
-async def moderate_new(message: Message, state: FSMContext, db: SQLiteDatabase, row: Any, bot: Bot):
+@router.message(F.text, StateFilter(FSMAdd.moderate_update))
+async def moderate_new(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot):
     logger.debug('moderate_new')
     data = await state.get_data()
+    row = data['row']
     data['delete_list'] = []
     data['delete_list'].append(message.message_id)
     # materials = db.select_table('materials')
@@ -119,7 +134,7 @@ async def moderate_new(message: Message, state: FSMContext, db: SQLiteDatabase, 
         db.update_cells('exercises', cells=cells, exercise_id=row['exercise_id'])
         msg = await message.answer(text='Материал внесен в базу, проверить наличие других обновлений на модерацию?',
                                    reply_markup=yesno)
-        await state.set_state(FSMAdd.exit_add)
+        await state.set_state(FSMAdd.exit_moderate)
         db.delete_rows(table='materials', material_id=row['material_id'])
         data['delete_list'].append(msg.message_id)
     elif message.text.strip().lower().startswith('принимаем'):
@@ -131,7 +146,7 @@ async def moderate_new(message: Message, state: FSMContext, db: SQLiteDatabase, 
         db.update_cells('exercises', cells=cells, exercise_id=row['exercise_id'])
         msg = await message.answer(text='Материал внесен в базу, проверить наличие других обновлений на модерацию?',
                                    reply_markup=yesno)
-        await state.set_state(FSMAdd.exit_add)
+        await state.set_state(FSMAdd.exit_moderate)
         db.delete_rows(table='materials', material_id=row['material_id'])
         data['delete_list'].append(msg.message_id)
     elif message.text.strip().lower().startswith('отклоняем'):
@@ -140,22 +155,22 @@ async def moderate_new(message: Message, state: FSMContext, db: SQLiteDatabase, 
                                    reply_markup=yesno)
         db.delete_rows(table='materials', material_id=row['material_id'])
         data['delete_list'].append(msg.message_id)
-        await state.set_state(FSMAdd.exit_add)
+        await state.set_state(FSMAdd.exit_moderate)
     await state.update_data(delete_list=data['delete_list'])
 
 
 @router.message(F.text.strip().lower() == 'нет', StateFilter(FSMAdd.exit_moderate))
-async def exit_add(message: Message, state: FSMContext, bot: Bot, db: SQLiteDatabase):
-    logger.debug('exit_add')
+async def exit_add(message: Message, state: FSMContext, bot: Bot):
+    logger.debug('exit_moderate')
     data = await state.get_data()
     data['delete_list'].append(message.message_id)
     await clear_delete_list(data['delete_list'], bot, message.from_user.id)
     await state.clear()
 
 
-@router.message(F.text.strip().lower() == 'да', StateFilter(FSMAdd.exit_add))
+@router.message(F.text.strip().lower() == 'да', StateFilter(FSMAdd.exit_moderate))
 @router.message(Command(commands='moderate_material'))
-async def no_materials(message: Message, state: FSMContext, db: SQLiteDatabase, row: Any, bot: Bot):
+async def no_materials(message: Message, state: FSMContext, bot: Bot):
     logger.debug('enter_no_materials')
     data = await state.get_data()
     if 'delete_list' not in data:
@@ -163,6 +178,7 @@ async def no_materials(message: Message, state: FSMContext, db: SQLiteDatabase, 
     data['delete_list'].append(message.message_id)
     msg = await message.answer(text='Материалов на модерацию не обнаружено!',
                                reply_markup=ReplyKeyboardRemove())
+    await asyncio.sleep(3)
     data['delete_list'].append(msg.message_id)
     await clear_delete_list(data['delete_list'], bot, message.from_user.id)
     await state.clear()

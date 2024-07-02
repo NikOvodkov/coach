@@ -97,8 +97,10 @@ async def main():
         # db.delete_rows('exercises', exercise_id=35)
         # db.delete_rows('exercises', exercise_id=31)
 
-        db.change_muscles_table()
-        db.add_muscles_to_exercises()
+        # db.change_muscles_table()
+        # db.add_muscles_to_exercises()
+
+        db.add_media_type()
 
     except Exception as e:
         logger.exception(e)
