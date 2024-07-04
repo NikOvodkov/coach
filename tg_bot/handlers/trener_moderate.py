@@ -30,7 +30,7 @@ async def moderate_material(message: Message, state: FSMContext, db: SQLiteDatab
     data['delete_list'].append(message.message_id)
     logger.debug(f'{row["exercise_id"]=}')
     # data['row'] = db.select_table('materials')[0]
-    if row['exercise_id']:
+    if row['exercise_id'] is not None:
         oldrow = db.select_rows(table='exercises', fetch='one', exercise_id=row['exercise_id'])
         if oldrow['media_type'] == 'photo':
             msg = await message.answer_photo(photo=oldrow["file_id"], caption='Текущая версия')
@@ -79,11 +79,13 @@ async def moderate_new(message: Message, state: FSMContext, db: SQLiteDatabase, 
     data['delete_list'].append(message.message_id)
     # materials = db.select_table('materials')
     if message.text.strip().lower().startswith('принимаем'):
+        logger.debug(f'{data["row"]=}')
         await bot.send_message(chat_id=data['row']['user_id'], text=message.text)
         db.add_exercise(user_id=row['user_id'], type_=row['type'], name=row['name'], description=row['description'],
                         description_text_link=row['description_text_link'], description_video_link=row['description_video_link'],
-                        file_id=row['file_id'], file_unique_id=row['file_unique_id'])
-        if row['type'] == 1:
+                        file_id=row['file_id'], file_unique_id=row['file_unique_id'], media_type=row['media_type'],
+                        arms=row['arms'], legs=row['legs'], chest=row['chest'], abs_=row['abs'], back=row['back'])
+        if (row['type'] == 1) or (row['type'] == 2):
             msg = await message.answer(text='Посчитайте и введите работу для нового динамического упражнения:',
                                        reply_markup=ReplyKeyboardRemove())
             await state.set_state(FSMAdd.moderate_add_work)
@@ -91,7 +93,12 @@ async def moderate_new(message: Message, state: FSMContext, db: SQLiteDatabase, 
             msg = await message.answer(text='Материал внесен в базу, проверить наличие других обновлений на модерацию?',
                                        reply_markup=yesno)
             await state.set_state(FSMAdd.exit_moderate)
-        db.delete_rows(table='materials', material_id=row['material_id'])
+        exercise = db.select_rows(table='exercises', fetch='one', file_unique_id=row['file_unique_id'])
+        if exercise:
+            logger.debug(f'delete moderated material')
+            db.delete_rows(table='materials', material_id=row['material_id'])
+        else:
+            logger.debug(f'moderated material not added')
         data['delete_list'].append(msg.message_id)
     elif message.text.strip().lower().startswith('отклоняем'):
         logger.debug(f'row["user_id"]=')
@@ -109,7 +116,7 @@ async def moderate_add_work(message: Message, state: FSMContext, db: SQLiteDatab
     data = await state.get_data()
     logger.debug(f'moderate_add_work {data["row"]["exercise_id"]=}')
     data['delete_list'].append(message.message_id)
-    db.update_cells(table='exercises', cells={'work': float(message.text.strip())}, exercise_id=data['row']['exercise_id'])
+    db.update_cells(table='exercises', cells={'work': float(message.text.strip())}, file_unique_id=data['row']['file_unique_id'])
     msg = await message.answer(text='Работа внесена в базу, проверить наличие других обновлений на модерацию?',
                                reply_markup=yesno)
     data['delete_list'].append(msg.message_id)
@@ -119,7 +126,7 @@ async def moderate_add_work(message: Message, state: FSMContext, db: SQLiteDatab
 
 @router.message(F.text, StateFilter(FSMAdd.moderate_update))
 async def moderate_new(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot):
-    logger.debug('moderate_new')
+    logger.debug('moderate_update')
     data = await state.get_data()
     row = data['row']
     data['delete_list'] = []
@@ -141,9 +148,15 @@ async def moderate_new(message: Message, state: FSMContext, db: SQLiteDatabase, 
         await bot.send_message(chat_id=row['user_id'], text=message.text)
         cells = {}
         for cell in row:
-            if row[cell]:
-                cells[cell] = row[cell]
+            if row[cell] is not None:
+                if type(row[cell]) is str:
+                    # cells[cell] = f"'{row[cell]}'"
+                    cells[cell] = row[cell]
+                else:
+                    cells[cell] = row[cell]
+        logger.debug(f'{cells=}')
         db.update_cells('exercises', cells=cells, exercise_id=row['exercise_id'])
+        # update_cellss(db=db, table='exercises', cells=cells, exercise_id=row['exercise_id'])
         msg = await message.answer(text='Материал внесен в базу, проверить наличие других обновлений на модерацию?',
                                    reply_markup=yesno)
         await state.set_state(FSMAdd.exit_moderate)

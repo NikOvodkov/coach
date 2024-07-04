@@ -4,6 +4,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import ReplyKeyboardRemove
 from pyrogram import Client
 
 from autorun import return_bot_status, print_telegram
@@ -31,7 +32,7 @@ async def set_all_default_commands(bot: Bot, config: Config):
 async def on_startup_notify(bot: Bot, config: Config):
     for admin in config.tg_bot.admin_ids:
         try:
-            await bot.send_message(admin, "Бот Запущен и готов к работе")
+            await bot.send_message(admin, "Бот Запущен и готов к работе", reply_markup=ReplyKeyboardRemove())
         except Exception as err:
             logger.exception(err)
 
@@ -100,7 +101,8 @@ async def main():
         # db.change_muscles_table()
         # db.add_muscles_to_exercises()
 
-        db.add_media_type()
+        # db.add_media_type()
+        db.add_user_endurance()
 
     except Exception as e:
         logger.exception(e)

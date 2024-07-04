@@ -87,7 +87,8 @@ class SQLiteDatabase:
                 legs_level REAL,
                 chest_level REAL,
                 abs_level REAL,
-                back_level REAL
+                back_level REAL,
+                endurance REAL  /* выносливость, будет замеряться по максимальной работе за день */
                 );
         '''
         self.execute(sql, commit=True, script=True)
@@ -96,13 +97,14 @@ class SQLiteDatabase:
                  latitude: float = None, longitude: float = None, time_zone: int = None,
                  birth_date: str = None, life_date: str = None, life_calendar_sub: str = None,
                  trener_sub: str = None, weight: int = None, arms_level: float = None, legs_level: float = None,
-                 chest_level: float = None, abs_level: float = None, back_level: float = None):
+                 chest_level: float = None, abs_level: float = None, back_level: float = None, endurance: float = None):
         sql = ('INSERT OR IGNORE INTO users(user_id, name, email, status, latitude, longitude, time_zone, '
                'birth_date, life_date, life_calendar_sub, trener_sub, weight,'
-               'arms_level, legs_level, chest_level, abs_level, back_level) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+               'arms_level, legs_level, chest_level, abs_level, back_level, endurance) '
+               'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
         parameters = (user_id, name, email, status, latitude, longitude, time_zone,
                       birth_date, life_date, life_calendar_sub, trener_sub, weight,
-                      arms_level, legs_level, chest_level, abs_level, back_level)
+                      arms_level, legs_level, chest_level, abs_level, back_level, endurance)
         self.execute(sql, parameters=parameters, commit=True)
 
     def create_table_exercises(self):  # таблица содержит неповторяющийся список уникальных упражнений
@@ -140,9 +142,9 @@ class SQLiteDatabase:
                      level_arms: int = None, level_legs: int = None, level_chest: int = None,
                      level_abs: int = None, level_back: int = None, media_type: str = None):
         sql = ('INSERT INTO exercises (user_id, type, name, description, '
-               'description_text_link, description_video_link, work, file_id, file_unique_id,'
-               'arms, legs, chest, abs_, back, level_arms, level_legs, level_chest, level_abs_, level_back, media_type) '
-               'VALUES(?,?,?,?,?,?,?,?,?,?)')
+               'description_text_link, description_video_link, work, file_id, file_unique_id, '
+               'arms, legs, chest, abs, back, level_arms, level_legs, level_chest, level_abs, level_back, media_type) '
+               'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
         parameters = (user_id, type_, name, description, description_text_link, description_video_link, work,
                       file_id, file_unique_id, arms, legs, chest, abs_, back,
                       level_arms, level_legs, level_chest, level_abs, level_back, media_type)
@@ -368,6 +370,10 @@ class SQLiteDatabase:
         sql = f'SELECT * FROM {table}'
         return self.execute(sql, fetch='all', tuple_=tuple_)
 
+    def select_first_row(self, table, tuple_=False):
+        sql = f'SELECT * FROM {table}'
+        return self.execute(sql, fetch='one', tuple_=tuple_)
+
     def count_rows(self, table):
         return self.execute(f'SELECT COUNT(*) FROM {table};', fetch='one')
 
@@ -396,12 +402,30 @@ class SQLiteDatabase:
         sql, parameters = self.format_args(sql, kwargs)
         return self.execute(sql + sql2, parameters, fetch=fetch, tuple_=tuple_)
 
-#  -- Сроковые значения в словаре cells должны быть в двойных кавычках!!! "'образец'"
+    #  -- Строковые значения в словаре cells должны быть в двойных кавычках!!! "'образец'"
     def update_cells(self, table, cells, **kwargs):
-        sql = ', '.join([f'{cell}={cells[cell]}' for cell in cells])
+        """
+        Обновит непустыми значениями только существующие столбцы.
+        Строковые значения в словаре cells должны быть в двойных кавычках!!! "'образец'"
+        :param table:
+        :param cells:
+        :param kwargs:
+        :return:
+        """
+        protected_cells = {}
+        columns = dict(self.select_first_row(table=table))
+        logger.debug(f'{columns=}')
+        for cell in cells:
+            if (cell in columns) and (cells[cell] is not None):
+                if type(cells[cell]) is str:
+                    protected_cells[cell] = f'"{cells[cell]}"'
+                else:
+                    protected_cells[cell] = cells[cell]
+        logger.debug(f'{protected_cells=}')
+        sql = ', '.join([f'{cell}={protected_cells[cell]}' for cell in protected_cells])
         sql = f'UPDATE {table} SET {sql} WHERE '
         sql, parameters = self.format_args(sql, kwargs)
-        logger.debug(sql, parameters)
+        logger.debug((sql, parameters))
         return self.execute(sql, parameters, commit=True)
 
     def update_cell(self, table, cell, cell_value, key, key_value):
@@ -413,7 +437,7 @@ class SQLiteDatabase:
         sql, parameters = self.format_args(sql, kwargs)
         return self.execute(sql, (cell_value, *parameters), commit=True)
 
-    def update_cells(self, table, cells, **kwargs):
+    def update_cells_old(self, table, cells, **kwargs):
         sql = ', '.join([f'{cell}={cells[cell]}' for cell in cells])
         sql = f'UPDATE {table} SET {sql} WHERE '
         sql, parameters = self.format_args(sql, kwargs)
@@ -614,3 +638,39 @@ class SQLiteDatabase:
         '''
         self.execute(sql, commit=True, script=True)
 
+    def add_user_endurance(self):
+        sql = '''
+        ALTER TABLE users ADD endurance REAL;
+        '''
+        self.execute(sql, commit=True, script=True)
+
+    # def logger(statement):
+    #     print(f'''
+    #     ______________________________________
+    #     Executing:
+    #     {statement}
+    #     ______________________________________
+    # ''')
+
+
+# def update_cellss(db, table, cells, **kwargs):
+#     """
+#     Обновит непустыми значениями только существующие столбцы.
+#     Строковые значения в словаре cells должны быть в двойных кавычках!!! "'образец'"
+#     :param table:
+#     :param cells:
+#     :param kwargs:
+#     :return:
+#     """
+#     protected_cells = {}
+#     columns = dict(db.select_first_row(table=table))
+#     logger.debug(f'{columns=}')
+#     for cell in cells:
+#         if (cell in columns) and (cells[cell] is not None):
+#             protected_cells[cell] = cells[cell]
+#     logger.debug(f'{protected_cells=}')
+#     sql = ', '.join([f'{cell}={protected_cells[cell]}' for cell in protected_cells])
+#     sql = f'UPDATE {table} SET {sql} WHERE '
+#     sql, parameters = db.format_args(sql, kwargs)
+#     logger.debug(sql, parameters)
+#     # return db.execute(sql, parameters, commit=True)

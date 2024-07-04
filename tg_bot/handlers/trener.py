@@ -53,7 +53,7 @@ async def show_statistics(message: Message, state: FSMContext, db: SQLiteDatabas
             i += 1
             msg[i] = ''
         msg[i] += statistics[workout] + '\n'
-    await message.answer(text=msg[i])
+    await message.answer(text=msg[i], reply_markup=ReplyKeyboardRemove())
     await state.clear()
 
 
@@ -71,7 +71,8 @@ async def warmup_07new(message: Message, state: FSMContext, db: SQLiteDatabase, 
         text=f'Выполните разминку из видео ниже, вы можете делать упражнения в удобном для вас темпе: '
              f'быстрее или медленнее чем показано в видео. Обратите внимание, красным цветом выделены '
              f'мышцы, на которые делается акцент в упражнении. Вы можете выполнить другую разминку, '
-             f'вместо представленной, но важно, чтобы она разогревала все мышцы и связки от шеи до ступней.')
+             f'вместо представленной, но важно, чтобы она разогревала все мышцы и связки от шеи до ступней.',
+        reply_markup=ReplyKeyboardRemove())
     data['delete_list'].append(msg.message_id)
     msg = await message.answer_video(
         video=db.select_rows(table='multimedia', fetch='one', name='warmup')['file_id'],
