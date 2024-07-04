@@ -296,6 +296,27 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase)
     await state.set_state(FSMTrener.workout_process)
 
 
+@router.message(F.text.lower().strip() == 'изучить подробно', StateFilter(FSMTrener.workout))
+async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase):
+    data = await state.get_data()
+    exercise_id = data["new_workout"][0][0]
+    exercise= db.select_rows(table='exercises', fetch='one', exercise_id=exercise_id)
+    msg = await message.answer(
+        text=f'{exercise["name"]}\n'
+             f'Описание:\n'
+             f'{exercise["description"]}\n'
+             f'Очень подробное описание по ссылке:\n'
+             f'{exercise["description_text_link"]}\n'
+             f'Обучающее видео:\n'
+             f'{exercise["description_video_link"]}\n'
+             f'Чтобы вернуться, нажмите кнопку Готово.',
+        reply_markup=ready)
+    # data['delete_list'].append(msg.message_id)
+    data['delete_list'].append(message.message_id)
+    await state.update_data(delete_list=data['delete_list'])
+    await state.set_state(FSMTrener.show_exercises)
+
+
 @router.message(F.text.lower().strip() == 'выбрать из списка', StateFilter(FSMTrener.workout))
 @router.message(F.text.lower().strip() == 'обновить список', StateFilter(FSMTrener.workout))
 async def start_trener(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot):

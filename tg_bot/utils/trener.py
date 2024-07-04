@@ -136,14 +136,22 @@ async def gnrt_wrkt(user_id: int, db: SQLiteDatabase, old_ex: int = None, black_
         approaches = db.select_rows(table='approaches', fetch='all', user_id=user_id)
         if approaches:  # продумать алгоритм
             logger.debug('approaches no old_ex')
-            #  1. Находим в истории тренировку с максимальной работой за месяц, добавляем 10%,
+            #  1. Находим в истории за последний месяц день с максимальной работой,
             #  получаем норму работы на новую тренировку.
             month_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
             week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
-            # максимальная работа среди всех воркаутов (выдаётся воркаут, надо обработать ещё)
             logger.debug(f'{month_ago=}')
-            max_work = db.select_filtered_sorted_rows(table='workouts', sql2=f' AND date > "{month_ago}" ORDER BY work DESC',
-                                                      fetch='one', user_id=user_id)
+            last_month_workouts = db.select_filtered_sorted_rows(table='workouts', sql2=f' AND date > "{month_ago}" ORDER BY work DESC',
+                                                                 fetch='all', user_id=user_id)
+            dates = {}
+            for workout in last_month_workouts:
+                date = datetime.fromisoformat(workout['date']).date()
+                if date in dates:
+                    dates[date] += workout['work']
+                else:
+                    dates[date] = workout['work']
+            logger.debug(f'{dates=}')
+            max_work = max(dates, key=dates.get)
             logger.debug(f'{max_work=}')
             #  2. Суммируем относительную (работа/кг мышцы) недельную работу по каждой мышце,
             #      выясняем у какой меньше всего, будем прорабатывать её.
@@ -156,41 +164,65 @@ async def gnrt_wrkt(user_id: int, db: SQLiteDatabase, old_ex: int = None, black_
             cells = dict(zip(cells, works))
             min_cell = min(cells, key=cells.get)
             logger.debug(f'{min_cell=}')
-            #  3. Находим упражнения на нужную мышечную группу, с загрузкой > 0.2. Выбираем то, которое реже всего
-            #  встречалось в истории тренировок за последний месяц и отсутствует в постоянном и временном чёрных списках.
+            #  3. Берём все упражнения и сортируем сначала в порядке убывания нагрузки на нужную группу,
+            #  затем в порядке частоты встречаемости за последний месяц. Затем удаляем те, что в ЧС.
+
             # muscle_names = {'arms': 'Руки', 'legs': 'Ноги', 'chest': 'Грудь', 'abs': 'Живот', 'back': 'Спина'}
             # exercises = db.select_filtered_sorted_rows(table='exercises_muscles', fetch='all',
             #                                            sql2=f' AND load > 0.2 ORDER BY exercise_id ASC',
             #                                            muscle_name=muscle_names[min_cell])
-            exercises = db.select_filtered_sorted_rows(table='exercises', fetch='all',
-                                                       sql2=f' AND {min_cell} > 0.2 ORDER BY exercise_id ASC',
-                                                       type=1)
-            logger.debug(f'exercises_muscles {exercises=}')
+
+            exercises = (db.select_rows(table='exercises', fetch='all', type=1) +
+                         db.select_rows(table='exercises', fetch='all', type=2))
             exercises_voc = {}
             for exercise in exercises:
-                exercises_voc[exercise['exercise_id']] = 0
-            logger.debug(f'{exercises_voc=}')
+                exercises_voc[exercise['exercise_id']] = [0, exercise[min_cell]]
             exercises = db.select_filtered_sorted_rows(table='approaches', fetch='all',
-                                                       sql2=f' AND date > "{month_ago}" ORDER BY exercise_id ASC',
+                                                       sql2=f' AND date > "{month_ago}"',
                                                        user_id=user_id)
-            logger.debug(f'approaches {len(exercises)=}')
             for exercise in exercises:
-                if exercise['exercise_id'] in exercises_voc:
-                    exercises_voc[exercise['exercise_id']] += 1
-            logger.debug(f'{black_list=}')
+                exercises_voc[exercise['exercise_id']][0] -= 1
+            logger.debug(f'{exercises_voc=}')
             blocked_exercises = db.select_rows(table='exercises_users', fetch='all', user_id=user_id, list=0)
-            logger.debug(f'approaches {blocked_exercises=}')
             for exercise in blocked_exercises:
                 if exercise['exercise_id'] not in black_list:
                     black_list.append(exercise['exercise_id'])
             logger.debug(f'{black_list=}')
-            logger.debug(f'{exercises_voc=}')
             for ex in black_list:
                 exercises_voc.pop(ex, '')
             if exercises_voc != {}:
-                rare_exercise = min(exercises_voc, key=exercises_voc.get)
+                rare_exercise = max(exercises_voc, key=exercises_voc.get)
                 logger.debug(f'{rare_exercise=}')
-            #  4. Создаём тренировку с выбранным упражнением, для этого находим предыдущий воркаут с ним.
+
+            # exercises = db.select_filtered_sorted_rows(table='exercises', fetch='all',
+            #                                            sql2=f' AND {min_cell} > 0.2 ORDER BY exercise_id ASC',
+            #                                            type=1)
+            # logger.debug(f'exercises_muscles {exercises=}')
+            # exercises_voc = {}
+            # for exercise in exercises:
+            #     exercises_voc[exercise['exercise_id']] = 0
+            # logger.debug(f'{exercises_voc=}')
+            # exercises = db.select_filtered_sorted_rows(table='approaches', fetch='all',
+            #                                            sql2=f' AND date > "{month_ago}" ORDER BY exercise_id ASC',
+            #                                            user_id=user_id)
+            # logger.debug(f'approaches {len(exercises)=}')
+            # for exercise in exercises:
+            #     if exercise['exercise_id'] in exercises_voc:
+            #         exercises_voc[exercise['exercise_id']] += 1
+            # logger.debug(f'{black_list=}')
+            # blocked_exercises = db.select_rows(table='exercises_users', fetch='all', user_id=user_id, list=0)
+            # logger.debug(f'approaches {blocked_exercises=}')
+            # for exercise in blocked_exercises:
+            #     if exercise['exercise_id'] not in black_list:
+            #         black_list.append(exercise['exercise_id'])
+            # logger.debug(f'{black_list=}')
+            # logger.debug(f'{exercises_voc=}')
+            # for ex in black_list:
+            #     exercises_voc.pop(ex, '')
+            # if exercises_voc != {}:
+            #     rare_exercise = min(exercises_voc, key=exercises_voc.get)
+            #     logger.debug(f'{rare_exercise=}')
+                #  4. Создаём тренировку с выбранным упражнением, для этого находим предыдущий воркаут с ним.
                 workout = db.select_filtered_sorted_rows(table='approaches', fetch='one',
                                                          sql2=f' ORDER BY approach_id DESC',
                                                          user_id=user_id, exercise_id=rare_exercise)

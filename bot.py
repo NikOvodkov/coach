@@ -102,7 +102,7 @@ async def main():
         # db.add_muscles_to_exercises()
 
         # db.add_media_type()
-        db.add_user_endurance()
+        # db.add_user_endurance()
 
     except Exception as e:
         logger.exception(e)
