@@ -134,7 +134,7 @@ async def gnrt_wrkt(user_id: int, db: SQLiteDatabase, old_ex: int = None, black_
     else:
         logger.debug('no old_ex')
         approaches = db.select_rows(table='approaches', fetch='all', user_id=user_id)
-        if approaches:  # продумать алгоритм
+        if approaches:
             logger.debug('approaches no old_ex')
             #  1. Находим в истории за последний месяц день с максимальной работой,
             #  получаем норму работы на новую тренировку.
@@ -143,12 +143,13 @@ async def gnrt_wrkt(user_id: int, db: SQLiteDatabase, old_ex: int = None, black_
             logger.debug(f'{month_ago=}')
             last_month_workouts = db.select_filtered_sorted_rows(table='workouts', sql2=f' AND date > "{month_ago}" ORDER BY work DESC',
                                                                  fetch='all', user_id=user_id)
+            logger.debug(f'{last_month_workouts=}')
             dates = {}
             for workout in last_month_workouts:
                 date = datetime.fromisoformat(workout['date']).date()
                 if date in dates:
                     dates[date] += workout['work']
-                else:
+                elif workout['work'] is not None:
                     dates[date] = workout['work']
             logger.debug(f'{dates=}')
             max_work = max(dates, key=dates.get)
@@ -367,6 +368,24 @@ async def save_approach(data, db: SQLiteDatabase, message):
                        exercise_id=exercise_id, approaches=approach,
                        work=work, arms=arms_work, legs=legs_work, chest=chest_work, abs_=abs_work, back=back_work)
     return data
+
+
+async def count_exercises_levels(data, db: SQLiteDatabase, message):
+    """
+    Функция рассчитывает уровни сложности упражнений на основе количества повторений в подходах пользователей.
+    Текущая формула расчёта:
+    а) Находим пользователей, у которых есть в подходах это упражнение, и выполняем пункты б)-д) для каждого:
+    б) Считаем количество всех выполненных подходов у пользователя = Х, используем его если Х > 100.
+    в) Считаем количество всех выполненных подходов искомого упражнения у пользователя = У, используем если У > 25.
+    г) Находим у этого пользователя подход с максимальным количеством повторений упражнения = Й.
+    д) Сложность для пользователя рассчитываем, как 1/Й.
+    е)
+    :param data:
+    :param db:
+    :param message:
+    :return:
+    """
+    return
 
 
 if __name__ == '__main__':
