@@ -168,11 +168,6 @@ async def gnrt_wrkt(user_id: int, db: SQLiteDatabase, old_ex: int = None, black_
             #  3. Берём все упражнения и сортируем сначала в порядке убывания нагрузки на нужную группу,
             #  затем в порядке частоты встречаемости за последний месяц. Затем удаляем те, что в ЧС.
 
-            # muscle_names = {'arms': 'Руки', 'legs': 'Ноги', 'chest': 'Грудь', 'abs': 'Живот', 'back': 'Спина'}
-            # exercises = db.select_filtered_sorted_rows(table='exercises_muscles', fetch='all',
-            #                                            sql2=f' AND load > 0.2 ORDER BY exercise_id ASC',
-            #                                            muscle_name=muscle_names[min_cell])
-
             exercises = (db.select_rows(table='exercises', fetch='all', type=1) +
                          db.select_rows(table='exercises', fetch='all', type=2))
             exercises_voc = {}
@@ -181,10 +176,16 @@ async def gnrt_wrkt(user_id: int, db: SQLiteDatabase, old_ex: int = None, black_
             exercises = db.select_filtered_sorted_rows(table='approaches', fetch='all',
                                                        sql2=f' AND date > "{month_ago}"',
                                                        user_id=user_id)
-            for exercise in exercises:
-                exercises_voc[exercise['exercise_id']][0] -= 1
-            logger.debug(f'{exercises_voc=}')
+            favourite_exercises = db.select_rows(table='exercises_users', fetch='all', user_id=user_id, list=1)
+            favourite_exercises = [ex['exercise_id'] for ex in favourite_exercises]
+            logger.debug(f'{favourite_exercises=}')
             blocked_exercises = db.select_rows(table='exercises_users', fetch='all', user_id=user_id, list=0)
+            for exercise in exercises:
+                if exercise['exercise_id'] in favourite_exercises:
+                    exercises_voc[exercise['exercise_id']][0] -= 0.5
+                else:
+                    exercises_voc[exercise['exercise_id']][0] -= 1
+            logger.debug(f'{exercises_voc=}')
             for exercise in blocked_exercises:
                 if exercise['exercise_id'] not in black_list:
                     black_list.append(exercise['exercise_id'])
@@ -194,35 +195,6 @@ async def gnrt_wrkt(user_id: int, db: SQLiteDatabase, old_ex: int = None, black_
             if exercises_voc != {}:
                 rare_exercise = max(exercises_voc, key=exercises_voc.get)
                 logger.debug(f'{rare_exercise=}')
-
-            # exercises = db.select_filtered_sorted_rows(table='exercises', fetch='all',
-            #                                            sql2=f' AND {min_cell} > 0.2 ORDER BY exercise_id ASC',
-            #                                            type=1)
-            # logger.debug(f'exercises_muscles {exercises=}')
-            # exercises_voc = {}
-            # for exercise in exercises:
-            #     exercises_voc[exercise['exercise_id']] = 0
-            # logger.debug(f'{exercises_voc=}')
-            # exercises = db.select_filtered_sorted_rows(table='approaches', fetch='all',
-            #                                            sql2=f' AND date > "{month_ago}" ORDER BY exercise_id ASC',
-            #                                            user_id=user_id)
-            # logger.debug(f'approaches {len(exercises)=}')
-            # for exercise in exercises:
-            #     if exercise['exercise_id'] in exercises_voc:
-            #         exercises_voc[exercise['exercise_id']] += 1
-            # logger.debug(f'{black_list=}')
-            # blocked_exercises = db.select_rows(table='exercises_users', fetch='all', user_id=user_id, list=0)
-            # logger.debug(f'approaches {blocked_exercises=}')
-            # for exercise in blocked_exercises:
-            #     if exercise['exercise_id'] not in black_list:
-            #         black_list.append(exercise['exercise_id'])
-            # logger.debug(f'{black_list=}')
-            # logger.debug(f'{exercises_voc=}')
-            # for ex in black_list:
-            #     exercises_voc.pop(ex, '')
-            # if exercises_voc != {}:
-            #     rare_exercise = min(exercises_voc, key=exercises_voc.get)
-            #     logger.debug(f'{rare_exercise=}')
                 #  4. Создаём тренировку с выбранным упражнением, для этого находим предыдущий воркаут с ним.
                 workout = db.select_filtered_sorted_rows(table='approaches', fetch='one',
                                                          sql2=f' ORDER BY approach_id DESC',
@@ -346,24 +318,23 @@ async def save_approach(data, db: SQLiteDatabase, message):
     approach = len(data['done_approaches'])
     logger.debug(f'{approach=}')
     user = db.select_rows(table='users', fetch='one', user_id=message.from_user.id)
-    work = (number * int(user['weight']) / 100
-            * db.select_rows(table='exercises', fetch='one', exercise_id=exercise_id)['work'])
-    arms_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=exercise_id, muscle_id=0)['load']
-    legs_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=exercise_id, muscle_id=1)['load']
-    chest_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=exercise_id, muscle_id=2)['load']
-    abs_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=exercise_id, muscle_id=3)['load']
-    back_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=exercise_id, muscle_id=4)['load']
+    exercise = db.select_rows(table='exercises', fetch='one', exercise_id=exercise_id)
+    work = (number * int(user['weight']) / 100 * exercise['work'])
+    arms_work = work * exercise['arms']
+    legs_work = work * exercise['legs']
+    chest_work = work * exercise['chest']
+    abs_work = work * exercise['abs']
+    back_work = work * exercise['back']
     db.add_approach(workout_id=data['workout_number'], user_id=user['user_id'], exercise_id=exercise_id,
                     number=approach, dynamic=number, static=0, date=datetime.utcnow().isoformat(),
                     work=work, arms=arms_work, legs=legs_work, chest=chest_work, abs_=abs_work, back=back_work)
     if len(data['new_workout']) == 0:
-        work = (sum([x[1] for x in data['done_approaches']]) * int(user['weight']) / 100
-                * db.select_rows(table='exercises', fetch='one', exercise_id=exercise_id)['work'])
-        arms_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=exercise_id, muscle_id=0)['load']
-        legs_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=exercise_id, muscle_id=1)['load']
-        chest_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=exercise_id, muscle_id=2)['load']
-        abs_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=exercise_id, muscle_id=3)['load']
-        back_work = work * db.select_rows('exercises_muscles', 'one', exercise_id=exercise_id, muscle_id=4)['load']
+        work = (sum([x[1] for x in data['done_approaches']]) * int(user['weight']) / 100 * exercise['work'])
+        arms_work = work * exercise['arms']
+        legs_work = work * exercise['legs']
+        chest_work = work * exercise['chest']
+        abs_work = work * exercise['abs']
+        back_work = work * exercise['back']
         db.add_workout(workout_id=data['workout_number'], user_id=user['user_id'], date=datetime.utcnow().isoformat(),
                        exercise_id=exercise_id, approaches=approach,
                        work=work, arms=arms_work, legs=legs_work, chest=chest_work, abs_=abs_work, back=back_work)
