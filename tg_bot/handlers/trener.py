@@ -255,10 +255,10 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase,
     data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
     logger.debug(f'before fill_exercises_users')
 
-    # await fill_exercises_users(user_id=message.from_user.id, db=db)
-    users = db.select_table(table='users')
-    for user in users:
-        await fill_exercises_users(user_id=user['user_id'], db=db)
+    await fill_exercises_users(user_id=message.from_user.id, db=db)
+    # users = db.select_table(table='users')
+    # for user in users:
+    #     await fill_exercises_users(user_id=user['user_id'], db=db)
 
     logger.debug(f'after fill_exercises_users')
     if message.text.lower().strip() == 'заменить':
