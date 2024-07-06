@@ -341,21 +341,78 @@ async def save_approach(data, db: SQLiteDatabase, message):
     return data
 
 
-async def count_exercises_levels(data, db: SQLiteDatabase, message):
+async def fill_exercises_users(user_id: int, db: SQLiteDatabase):
+    logger.debug(f'enter fill_exercises_users')
+    exercises = db.select_table(table='exercises')
+    logger.debug(f'fill_exercises_users {exercises=}')
+    for exercise in exercises:
+        exercise_user = db.select_rows(table='exercises_users', fetch='one',
+                                       user_id=user_id, exercise_id=exercise['exercise_id'])
+        if not exercise_user:
+            db.add_exercise_user(user_id=user_id, exercise_id=exercise['exercise_id'])
+    return
+
+
+async def count_exercises_levels(db: SQLiteDatabase):
     """
     Функция рассчитывает уровни сложности упражнений на основе количества повторений в подходах пользователей.
+    Запускается вручную администратором.
     Текущая формула расчёта:
-    а) Находим пользователей, у которых есть в подходах это упражнение, и выполняем пункты б)-д) для каждого:
-    б) Считаем количество всех выполненных подходов у пользователя = Х, используем его если Х > 100.
-    в) Считаем количество всех выполненных подходов искомого упражнения у пользователя = У, используем если У > 25.
-    г) Находим у этого пользователя подход с максимальным количеством повторений упражнения = Й.
-    д) Сложность для пользователя рассчитываем, как 1/Й.
-    е)
+    а) Пробегаемся по таблице подходов, собираем из неё таблицу
+       {exercise_id: [{user_id: max_rep, ex_reps, all_reps}, {}, {}], ... }.
+    б) Сложность для пользователя рассчитываем, как 1/max_rep, и умножаем на участие каждой группы мышц, т.е. 0.1 * 1/Й и т.д.
+    в) На основе отфильтрованных пользователей (более 25 подходов к упражнению, более 100 подходов всего)
+       рассчитываем сложность упражнений и записываем в базу упражнений
     :param data:
     :param db:
     :param message:
     :return:
     """
+    approaches = db.select_table(table='approaches')
+    exercises_users = {}
+
+    for approach in approaches:
+        ind = (approach['exercise_id'], approach['user_id'])
+        if ind in exercises_users:
+            exercises_users[ind] = [max(exercises_users[ind][0], approach['dynamic']),
+                                    exercises_users[ind][1] + 1,
+                                    1/max(exercises_users[ind][0], approach['dynamic'])]
+        else:
+            exercises_users[ind] = [approach['dynamic'], 1, 1/approach['dynamic']]
+    users = {}
+    for ind in exercises_users:
+        if ind[1] in users:
+            users[ind[1]] += exercises_users[ind][1]
+        else:
+            users[ind[1]] = exercises_users[ind][1]
+        exercise = db.select_rows('exercises', fetch='one', exercise_id=ind[0])
+        db.update_cells(table='exercises_users',
+                        cells={'arms': exercise['arms'] * exercises_users[ind][2],
+                               'legs': exercise['legs'] * exercises_users[ind][2],
+                               'chest': exercise['chest'] * exercises_users[ind][2],
+                               'abs': exercise['abs'] * exercises_users[ind][2],
+                               'back': exercise['back'] * exercises_users[ind][2]},
+                        user_id=ind[1], exercise_id=ind[0])
+    exercises = {}
+    for ind in exercises_users:
+        if (users[ind[1]] > 100) and (exercises_users[ind][1] > 10):
+            if ind[0] in exercises:
+                exercises[ind[0]] = [exercises[ind[0]][0] + exercises_users[ind][2], exercises[ind[0]][1] + 1]
+            else:
+                exercises[ind[0]] = [exercises_users[ind][2], 1]
+    for exercise_id in exercises:
+        exercise = db.select_rows('exercises', fetch='one', exercise_id=exercise_id)
+        k = exercises[exercise_id][0] / exercises[exercise_id][1]
+        db.update_cells(table='exercises',
+                        cells={'level_arms': exercise['arms'] * k,
+                               'level_legs': exercise['legs'] * k,
+                               'level_chest': exercise['chest'] * k,
+                               'level_abs': exercise['abs'] * k,
+                               'level_back': exercise['back'] * k},
+                        exercise_id=exercise_id)
+    logger.debug(f'{exercises_users=}')
+    logger.debug(f'{users=}')
+    logger.debug(f'{exercises=} {len(exercises)=}')
     return
 
 

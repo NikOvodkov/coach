@@ -21,7 +21,7 @@ from tg_bot.services.ufuncs import clear_delete_list
 from tg_bot.states.trener import FSMTrener
 from tg_bot.utils.life_calendar import generate_image_calendar
 from tg_bot.states.life_calendar import FSMLifeCalendar
-from tg_bot.utils.trener import generate_new_split, Split, Approach, gnrt_wrkt, show_exercise, award_user, save_approach
+from tg_bot.utils.trener import generate_new_split, Split, Approach, gnrt_wrkt, show_exercise, award_user, save_approach, fill_exercises_users
 
 # Инициализируем роутер уровня модуля
 router = Router()
@@ -239,11 +239,28 @@ async def enter_data_06new(message: Message, bot: Bot, state: FSMContext, db: SQ
 @router.message(F.text.lower().strip() == 'заменить', StateFilter(FSMTrener.workout))
 # @router.message(F.text.lower().strip() == 'выбрать автоматически', StateFilter(FSMTrener.workout))
 async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot):
+    """
+    Перед началом тренировки, нужно проверить и заполнить при необходимости таблицу exercises_users
+    для данного пользователя.
+    :param message:
+    :param state:
+    :param db:
+    :param bot:
+    :return:
+    """
     data = await state.get_data()
     if 'delete_list' not in data:
         data['delete_list'] = []
     data['delete_list'].append(message.message_id)
     data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
+    logger.debug(f'before fill_exercises_users')
+
+    # await fill_exercises_users(user_id=message.from_user.id, db=db)
+    users = db.select_table(table='users')
+    for user in users:
+        await fill_exercises_users(user_id=user['user_id'], db=db)
+
+    logger.debug(f'after fill_exercises_users')
     if message.text.lower().strip() == 'заменить':
         data['black_list'].append(data['new_workout'][0][0])
         if len(data['black_list']) > 27:

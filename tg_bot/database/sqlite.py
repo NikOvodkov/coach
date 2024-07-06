@@ -644,6 +644,8 @@ class SQLiteDatabase:
         '''
         self.execute(sql, commit=True, script=True)
 
+
+
     # def logger(statement):
     #     print(f'''
     #     ______________________________________

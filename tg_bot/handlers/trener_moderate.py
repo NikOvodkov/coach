@@ -14,10 +14,16 @@ from tg_bot.filters.db import NeedModerating
 from tg_bot.keyboards.trener import yesno
 from tg_bot.services.ufuncs import clear_delete_list
 from tg_bot.states.add import FSMAdd
+from tg_bot.utils.trener import count_exercises_levels
 
 router = Router()
 # вешаем фильтр на роутер
 router.message.filter(IsAdmin(load_config('.env').tg_bot.admin_ids))
+
+
+@router.message(Command(commands='update_levels'))
+async def update_levels(message: Message, state: FSMContext, db: SQLiteDatabase):
+    await count_exercises_levels(db=db)
 
 
 @router.message(F.text.strip().lower() == 'да', StateFilter(FSMAdd.exit_moderate), NeedModerating())
