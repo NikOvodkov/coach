@@ -151,6 +151,7 @@ async def gnrt_wrkt(user_id: int, db: SQLiteDatabase, old_ex: int = None, black_
                     dates[date] += workout['work']
                 elif workout['work'] is not None:
                     dates[date] = workout['work']
+                logger.debug(f'{dates=}')
             logger.debug(f'{dates=}')
             max_work = max(dates, key=dates.get)
             logger.debug(f'{max_work=}')
