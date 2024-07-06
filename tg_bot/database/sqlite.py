@@ -254,7 +254,7 @@ class SQLiteDatabase:
     def create_table_workouts(self):
         sql = '''
         CREATE TABLE IF NOT EXISTS workouts (
-                workout_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                workout_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                 user_id INTEGER REFERENCES users (user_id),
                 date VARCHAR(31),
                 exercise_id INTEGER REFERENCES exercises (exercise_id),
@@ -266,22 +266,20 @@ class SQLiteDatabase:
                 abs REAL,
                 back REAL
                 );
-        INSERT OR IGNORE INTO workouts (workout_id, user_id, date, approaches, work, arms, legs, chest, abs, back)
-        SELECT * FROM workouts_short;
         '''
         self.execute(sql, commit=True, script=True)
 
-    def add_workout(self, workout_id: int, user_id: int, date: str, exercise_id: int, approaches: int,
-                    work: float, arms: float, legs: float, chest: float, abs_: float, back: float):
-        sql = (f'INSERT OR IGNORE INTO workouts (workout_id, user_id, date, exercise_id, approaches,'
-               f' work, arms, legs, chest, abs, back) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
-        parameters = (workout_id, user_id, date, exercise_id, approaches, work, arms, legs, chest, abs_, back)
+    def add_workout(self, user_id: int, date: str = None, exercise_id: int = None, approaches: int = None, work: float = None,
+                    arms: float = None, legs: float = None, chest: float = None, abs_: float = None, back: float = None):
+        sql = (f'INSERT OR IGNORE INTO workouts (user_id, date, exercise_id, approaches,'
+               f' work, arms, legs, chest, abs, back) VALUES(?,?,?,?,?,?,?,?,?,?)')
+        parameters = (user_id, date, exercise_id, approaches, work, arms, legs, chest, abs_, back)
         self.execute(sql, parameters=parameters, commit=True)
 
     def create_table_approaches(self):
         sql = '''
         CREATE TABLE IF NOT EXISTS approaches (
-                approach_id INTEGER GENERATED ALWAYS AS ((workout_id * 100) + number) STORED UNIQUE, /* уникальный номер подхода */
+                approach_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, /* уникальный номер подхода */
                 workout_id INTEGER NOT NULL, /* номер тренировки (из одного упражнения) */
                 user_id INTEGER REFERENCES users (user_id), /* пользователь */
                 exercise_id INTEGER REFERENCES exercises (exercise_id), /* упражнение */
@@ -297,10 +295,6 @@ class SQLiteDatabase:
                 abs REAL, /* часть работы, выполненной мышцами пресса */
                 back REAL /* часть работы, выполненной мышцами спины */
                 );
-        INSERT OR IGNORE INTO approaches (workout_id, user_id, exercise_id, number, dynamic, static, date,
-                                          work, arms, legs, chest, abs, back)
-        SELECT workout_id, user_id, exercise_id, approach, dynamic, static, date,
-               work, arms, legs, chest, abs, back FROM workouts_long;
         '''
         self.execute(sql, commit=True, script=True)
 
@@ -528,8 +522,8 @@ class SQLiteDatabase:
 
     def change_muscles_table(self):
         sql = '''
-    PRAGMA foreign_keys = 0;
-    CREATE TABLE sqlitestudio_temp_table AS SELECT *
+        PRAGMA foreign_keys = 0;
+        CREATE TABLE sqlitestudio_temp_table AS SELECT *
                                               FROM muscles;
     DROP TABLE muscles;
     CREATE TABLE muscles (
@@ -644,7 +638,66 @@ class SQLiteDatabase:
         '''
         self.execute(sql, commit=True, script=True)
 
+    def regenerate_approaches(self):
+        sql = '''
+        PRAGMA foreign_keys = 0;
 
+        CREATE TABLE sqlitestudio_temp_table AS SELECT *
+                                          FROM approaches;
+
+        DROP TABLE approaches;
+
+        CREATE TABLE approaches (
+            approach_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            workout_id  INTEGER       NOT NULL,
+            user_id     INTEGER       REFERENCES users (user_id),
+            exercise_id INTEGER       REFERENCES exercises (exercise_id),
+            number     INTEGER,
+            dynamic     INTEGER,
+            static      INTEGER,
+            date        VARCHAR (31),
+            work        REAL,
+            arms        REAL,
+            legs        REAL,
+            chest       REAL,
+            abs         REAL,
+            back        REAL
+        );
+
+        INSERT INTO approaches (
+                           workout_id,
+                           user_id,
+                           exercise_id,
+                           number,
+                           dynamic,
+                           static,
+                           date,
+                           work,
+                           arms,
+                           legs,
+                           chest,
+                           abs,
+                           back
+                       )
+                       SELECT workout_id,
+                              user_id,
+                              exercise_id,
+                              number,
+                              dynamic,
+                              static,
+                              date,
+                              work,
+                              arms,
+                              legs,
+                              chest,
+                              abs,
+                              back
+                         FROM sqlitestudio_temp_table;
+
+        DROP TABLE sqlitestudio_temp_table;
+        PRAGMA foreign_keys = 1;
+        '''
+        self.execute(sql, commit=True, script=True)
 
     # def logger(statement):
     #     print(f'''

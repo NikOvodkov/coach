@@ -255,6 +255,7 @@ async def award_user(user_id, db: SQLiteDatabase):
     """
 
     # максимальный повтор упражнения в последнем воркауте
+    logger.debug(f'enter_award_user')
     last_max_approach = db.select_filtered_sorted_rows(table='approaches', sql2=' ORDER BY workout_id DESC, dynamic DESC',
                                                        fetch='one', user_id=user_id)
     exercise_id = last_max_approach['exercise_id']
@@ -270,8 +271,10 @@ async def award_user(user_id, db: SQLiteDatabase):
     last_job = db.select_filtered_sorted_rows(table='workouts', sql2=' ORDER BY workout_id DESC',
                                               fetch='one', user_id=user_id)
     # максимальная работа среди всех воркаутов, кроме последнего
+    logger.debug(f'award_user before last db operation {workout_id=}')
     max_job = db.select_filtered_sorted_rows(table='workouts', sql2=f' AND workout_id <> {workout_id} ORDER BY work DESC',
                                              fetch='one', user_id=user_id)
+    logger.debug(f'award_user db data get')
     if not max_job:
         max_job = {'work': 0}
     max_work = last_job['work'] > max_job['work']
@@ -326,6 +329,14 @@ async def save_approach(data, db: SQLiteDatabase, message):
     chest_work = work * exercise['chest']
     abs_work = work * exercise['abs']
     back_work = work * exercise['back']
+    logger.debug(f'{data=}')
+    if 'workout_number' not in data:
+        data['workout_number'] = 0
+    if approach == 1:
+        db.add_workout(user_id=user['user_id'], exercise_id=exercise_id, approaches=approach)
+        data['workout_number'] = db.select_filtered_sorted_rows(table='workouts', fetch='one',
+                                                                sql2=f' ORDER BY workout_id DESC',
+                                                                user_id=user['user_id'])['workout_id']
     db.add_approach(workout_id=data['workout_number'], user_id=user['user_id'], exercise_id=exercise_id,
                     number=approach, dynamic=number, static=0, date=datetime.utcnow().isoformat(),
                     work=work, arms=arms_work, legs=legs_work, chest=chest_work, abs_=abs_work, back=back_work)
@@ -336,9 +347,10 @@ async def save_approach(data, db: SQLiteDatabase, message):
         chest_work = work * exercise['chest']
         abs_work = work * exercise['abs']
         back_work = work * exercise['back']
-        db.add_workout(workout_id=data['workout_number'], user_id=user['user_id'], date=datetime.utcnow().isoformat(),
-                       exercise_id=exercise_id, approaches=approach,
-                       work=work, arms=arms_work, legs=legs_work, chest=chest_work, abs_=abs_work, back=back_work)
+        db.update_cells(table='workouts',
+                        cells={'date': datetime.utcnow().isoformat(), 'approaches': approach, 'work': work,
+                               'arms': arms_work, 'legs': legs_work, 'chest': chest_work, 'abs_': abs_work, 'back': back_work},
+                        workout_id=data['workout_number'])
     return data
 
 
@@ -377,9 +389,9 @@ async def count_exercises_levels(db: SQLiteDatabase):
         if ind in exercises_users:
             exercises_users[ind] = [max(exercises_users[ind][0], approach['dynamic']),
                                     exercises_users[ind][1] + 1,
-                                    1/max(exercises_users[ind][0], approach['dynamic'])]
+                                    1 / max(exercises_users[ind][0], approach['dynamic'])]
         else:
-            exercises_users[ind] = [approach['dynamic'], 1, 1/approach['dynamic']]
+            exercises_users[ind] = [approach['dynamic'], 1, 1 / approach['dynamic']]
     users = {}
     for ind in exercises_users:
         if ind[1] in users:

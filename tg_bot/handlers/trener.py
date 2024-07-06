@@ -289,7 +289,6 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase)
         data['new_workout'] = await gnrt_wrkt(user_id=message.from_user.id, db=db, old_ex=exercise_id,
                                               black_list=data['black_list'])
     time_start = datetime.utcnow().timestamp()
-    workout_number = db.select_table(table='approaches')[-1]['workout_id'] + 1
     logger.debug(f'{data["new_workout"]=}')
     msg = await message.answer(
         text=f'Если упражнение вам незнакомо или непонятно, найдите его в интернет и изучите самостоятельно.\n\n'
@@ -304,7 +303,6 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase)
 
     data['delete_list'].append(msg.message_id)
     data['delete_list'].append(message.message_id)
-    await state.update_data(workout_number=workout_number)
     await state.update_data(time_start=time_start)
     await state.update_data(delete_list=data['delete_list'])
     await state.update_data(new_workout=data["new_workout"])
@@ -383,6 +381,7 @@ async def workout_process(message: Message, state: FSMContext, db: SQLiteDatabas
     logger.debug(f'before save {data["new_workout"]=}')
     data = await save_approach(data, db, message)
     logger.debug(f'after save {data["new_workout"]=}')
+    await state.update_data(workout_number=data["workout_number"])
     await state.update_data(done_approaches=data['done_approaches'])
     await state.update_data(new_workout=data["new_workout"])
     approach = len(data['done_approaches'])
@@ -421,6 +420,7 @@ async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase, 
     logger.debug(f'before last save_approaches')
     data = await save_approach(data, db, message)
     logger.debug(f'after last save_approaches')
+    await state.update_data(workout_number=data["workout_number"])
     await state.update_data(done_approaches=data['done_approaches'])
     await state.update_data(new_workout=data["new_workout"])
     logger.debug(f'before workout saved {data["done_approaches"]=}')
