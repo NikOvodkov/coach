@@ -111,120 +111,11 @@ async def gnrt_wrkt(user_id: int, db: SQLiteDatabase, old_ex: int = None, black_
     """
     # Если воркаут на конкретное упражнение/тренировку:
     if old_ex is not None:
-        logger.debug(f'{old_ex=}')
-        approaches = db.select_filtered_sorted_rows(table='approaches', fetch='one',
-                                                    sql2=f' ORDER BY approach_id DESC',
-                                                    user_id=user_id, exercise_id=old_ex)
-        if approaches:
-            logger.debug('old_ex approaches')
-            workout_id = approaches['workout_id']
-            logger.debug(f'{workout_id=}')
-            workouts = db.select_rows(table='approaches', fetch='all', workout_id=workout_id, exercise_id=old_ex)
-            logger.debug(f'{workouts=}')
-            old_wrkt = [Approach(old_ex, workout['dynamic'], False) if i in {0, 2, 3} else
-                        Approach(old_ex, workout['dynamic'], True)
-                        for i, workout in enumerate(workouts)]
-            logger.debug(f'{old_wrkt=}')
-            return generate_new_split_new(old_wrkt)
-        else:
-            logger.debug('old_ex no approaches')
-            return [Approach(old_ex, 1, False), Approach(old_ex, 1, False), Approach(old_ex, 1, False),
-                    Approach(old_ex, 1, False), Approach(old_ex, 1, True)]
+        workout = await generate_solo_workout(db, user_id, old_ex)
     # если нет, то будем собирать из разных упражнений:
     else:
-        logger.debug('no old_ex')
-        approaches = db.select_rows(table='approaches', fetch='all', user_id=user_id)
-        if approaches:
-            logger.debug('approaches no old_ex')
-            #  1. Находим в истории за последний месяц день с максимальной работой,
-            #  получаем норму работы на новую тренировку.
-            month_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
-            week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
-            logger.debug(f'{month_ago=}')
-            last_month_workouts = db.select_filtered_sorted_rows(table='workouts', sql2=f' AND date > "{month_ago}" ORDER BY work DESC',
-                                                                 fetch='all', user_id=user_id)
-            logger.debug(f'{last_month_workouts=}')
-            dates = {}
-            for workout in last_month_workouts:
-                date = datetime.fromisoformat(workout['date']).date()
-                if workout['work'] is not None:
-                    if date in dates:
-                        dates[date] += workout['work']
-                    else:
-                        dates[date] = workout['work']
-            logger.debug(f'{dates=}')
-            max_work = max(dates, key=dates.get)
-            logger.debug(f'{max_work=}')
-            #  2. Суммируем относительную (работа/кг мышцы) недельную работу по каждой мышце,
-            #      выясняем у какой меньше всего, будем прорабатывать её.
-            cells = ['work', 'arms', 'legs', 'chest', 'abs', 'back']
-            masses = [1, 0.21, 0.55, 0.06, 0.06, 0.12]
-            works = db.sum_filtered_sorted_rows(table='approaches', cells=cells, sql2=f' AND date > "{week_ago}"',
-                                                tuple_=True, fetch='all', user_id=user_id)[0]
-            logger.debug(f'{works=}')
-            works = list(map(truediv, works, masses))
-            cells = dict(zip(cells, works))
-            min_cell = min(cells, key=cells.get)
-            logger.debug(f'{min_cell=}')
-            #  3. Берём все упражнения и сортируем сначала в порядке убывания нагрузки на нужную группу,
-            #  затем в порядке частоты встречаемости за последний месяц. Затем удаляем те, что в ЧС.
-
-            exercises = (db.select_rows(table='exercises', fetch='all', type=1) +
-                         db.select_rows(table='exercises', fetch='all', type=2))
-            exercises_voc = {}
-            for exercise in exercises:
-                exercises_voc[exercise['exercise_id']] = [0, exercise[min_cell]]
-            exercises = db.select_filtered_sorted_rows(table='approaches', fetch='all',
-                                                       sql2=f' AND date > "{month_ago}"',
-                                                       user_id=user_id)
-            favourite_exercises = db.select_rows(table='exercises_users', fetch='all', user_id=user_id, list=1)
-            favourite_exercises = [ex['exercise_id'] for ex in favourite_exercises]
-            logger.debug(f'{favourite_exercises=}')
-            blocked_exercises = db.select_rows(table='exercises_users', fetch='all', user_id=user_id, list=0)
-            for exercise in exercises:
-                if exercise['exercise_id'] in favourite_exercises:
-                    exercises_voc[exercise['exercise_id']][0] -= 0.5
-                else:
-                    exercises_voc[exercise['exercise_id']][0] -= 1
-            logger.debug(f'{exercises_voc=}')
-            for exercise in blocked_exercises:
-                if exercise['exercise_id'] not in black_list:
-                    black_list.append(exercise['exercise_id'])
-            logger.debug(f'{black_list=}')
-            for ex in black_list:
-                exercises_voc.pop(ex, '')
-            if exercises_voc != {}:
-                rare_exercise = max(exercises_voc, key=exercises_voc.get)
-                logger.debug(f'{rare_exercise=}')
-                #  4. Создаём тренировку с выбранным упражнением, для этого находим предыдущий воркаут с ним.
-                workout = db.select_filtered_sorted_rows(table='approaches', fetch='one',
-                                                         sql2=f' ORDER BY approach_id DESC',
-                                                         user_id=user_id, exercise_id=rare_exercise)
-                if workout:
-                    workout_id = workout['workout_id']
-                    logger.debug(f'{workout_id=}')
-                    approaches = db.select_filtered_sorted_rows(table='approaches', fetch='all',
-                                                                sql2=f' ORDER BY number ASC',
-                                                                workout_id=workout_id)
-                    logger.debug(f'{approaches=}')
-                    old_wrkt = [Approach(rare_exercise, approach['dynamic'], False) if i in {0, 2, 3} else
-                                Approach(rare_exercise, approach['dynamic'], True)
-                                for i, approach in enumerate(approaches)]
-                    logger.debug(f'{old_wrkt=}')
-                    return generate_new_split_new(old_wrkt)
-                else:
-                    return generate_new_split_new(exercise_id=rare_exercise)
-            else:
-                # Если до этого ещё не было тренировок, то предлагается набор из самых простых упражнений на разные группы мышц,
-                # так называемый входной тест: отжимания на коленях, гиперэкстензии, подъем ног, приседания, гусеница
-                return [Approach(4, 1, True), Approach(12, 1, True), Approach(24, 1, True),
-                        Approach(8, 1, True), Approach(27, 1, True)]
-        else:
-            logger.debug('no approaches no old_ex')
-            # Если до этого ещё не было тренировок, то предлагается набор из самых простых упражнений на разные группы мышц,
-            # так называемый входной тест: отжимания на коленях, гиперэкстензии, подъем ног, приседания, гусеница
-            return [Approach(4, 1, True), Approach(12, 1, True), Approach(24, 1, True),
-                    Approach(8, 1, True), Approach(27, 1, True)]
+        workout = await generate_full_workout(db, user_id, black_list)
+    return workout
 
 
 async def show_exercise(message, db, exercise_id, keyboard):
@@ -427,6 +318,127 @@ async def count_exercises_levels(db: SQLiteDatabase):
     logger.debug(f'{users=}')
     logger.debug(f'{exercises=} {len(exercises)=}')
     return
+
+
+async def generate_solo_workout(db: SQLiteDatabase, user_id: int, exercise_id: int):
+    logger.debug(f'generate_solo_workout {exercise_id=}')
+    approaches = db.select_filtered_sorted_rows(table='approaches', fetch='one', sql2=f' ORDER BY approach_id DESC',
+                                                user_id=user_id, exercise_id=exercise_id)
+    if approaches and (datetime.utcnow() - datetime.fromisoformat(approaches['date'])) < timedelta(days=29):
+        approaches = db.select_filtered_sorted_rows(table='approaches', fetch='all', sql2=f' ORDER BY approach_id ASC',
+                                                    workout_id=approaches['workout_id'], exercise_id=exercise_id)
+        logger.debug('generate_solo_workout approaches')
+        old_wrkt = [Approach(exercise_id, approach['dynamic'], False) if i in {0, 2, 3} else
+                    Approach(exercise_id, approach['dynamic'], True)
+                    for i, approach in enumerate(approaches)]
+        logger.debug(f'{old_wrkt=}')
+        return generate_new_split_new(old_wrkt)
+    else:
+        logger.debug('generate_solo_workout no approaches')
+        return [Approach(exercise_id, 1, False), Approach(exercise_id, 1, False), Approach(exercise_id, 1, False),
+                Approach(exercise_id, 1, False), Approach(exercise_id, 1, True)]
+
+
+async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: list = None):
+    logger.debug('generate_full_workout')
+    # Для начала выясним когда была последняя тренировка и была ли она вообще:
+    last_approach = db.select_filtered_sorted_rows(table='approaches', fetch='one',
+                                                   sql2=f' ORDER BY workout_id DESC',
+                                                   user_id=user_id)
+    if last_approach:
+        break_time = datetime.utcnow() - datetime.fromisoformat(last_approach['date'])
+        # Если перерыв 29 дней и более, начинаем как с нуля, с тестов типа 1 1 1 1 1.
+
+        # Если перерыв менее 7 дней, запускаем стандартного автотренера.
+    else:
+        # Если до этого ещё не было тренировок, то предлагается набор из самых простых упражнений на разные группы мышц,
+        # так называемый входной тест: отжимания на коленях, гиперэкстензии, подъем ног, приседания, гусеница;
+        # пока режим тренировки с разными упражнениями не реализован, ограничимся отжиманиями на коленях.
+        # return [Approach(4, 1, True), Approach(12, 1, True), Approach(24, 1, True),
+        #         Approach(8, 1, True), Approach(27, 1, True)]
+        return [Approach(4, 1, True), Approach(4, 1, True), Approach(4, 1, True),
+                Approach(4, 1, True), Approach(4, 1, True)]
+    # Если перерыв 7-28 дней, сгенерируем соло тренировку на базе последнего упражнения.
+    if break_time > timedelta(days=7):
+        solo_workout = await generate_solo_workout(db, user_id, last_approach['exercise_id'])
+        return solo_workout
+    else:
+        logger.debug('approaches no old_ex')
+        #  1. Находим в истории за последний месяц день с максимальной работой,
+        #  получаем норму работы на новую тренировку.
+        month_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
+        week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
+        last_month_workouts = db.select_filtered_sorted_rows(table='workouts', sql2=f' AND date > "{month_ago}" ORDER BY work DESC',
+                                                             fetch='all', user_id=user_id)
+        dates = {}
+        for workout in last_month_workouts:
+            date = datetime.fromisoformat(workout['date']).date()
+            if workout['work'] is not None:
+                if date in dates:
+                    dates[date] += workout['work']
+                else:
+                    dates[date] = workout['work']
+        max_work = max(dates, key=dates.get)
+        #  2. Суммируем относительную (работа/кг мышцы) недельную работу по каждой мышце,
+        #      выясняем у какой меньше всего, будем прорабатывать её.
+        cells = ['work', 'arms', 'legs', 'chest', 'abs', 'back']
+        masses = [1, 0.21, 0.55, 0.06, 0.06, 0.12]
+        works = db.sum_filtered_sorted_rows(table='approaches', cells=cells, sql2=f' AND date > "{week_ago}"',
+                                            tuple_=True, fetch='all', user_id=user_id)
+        works = works[0]
+        works = list(map(truediv, works, masses))
+        cells = dict(zip(cells, works))
+        min_cell = min(cells, key=cells.get)
+        #  3. Берём все упражнения и сортируем сначала в порядке убывания нагрузки на нужную группу,
+        #  затем в порядке частоты встречаемости за последний месяц. Затем удаляем те, что в ЧС.
+        #  Если min_cell = None, то повторяем последний воркаут
+        exercises = (db.select_rows(table='exercises', fetch='all', type=1) +
+                     db.select_rows(table='exercises', fetch='all', type=2))
+        exercises_voc = {}
+        for exercise in exercises:
+            exercises_voc[exercise['exercise_id']] = [0, exercise[min_cell]]
+        exercises = db.select_filtered_sorted_rows(table='approaches', fetch='all',
+                                                   sql2=f' AND date > "{month_ago}"',
+                                                   user_id=user_id)
+        favourite_exercises = db.select_rows(table='exercises_users', fetch='all', user_id=user_id, list=1)
+        favourite_exercises = [ex['exercise_id'] for ex in favourite_exercises]
+        logger.debug(f'{favourite_exercises=}')
+        blocked_exercises = db.select_rows(table='exercises_users', fetch='all', user_id=user_id, list=0)
+        for exercise in exercises:
+            if exercise['exercise_id'] in favourite_exercises:
+                exercises_voc[exercise['exercise_id']][0] -= 0.5
+            else:
+                exercises_voc[exercise['exercise_id']][0] -= 1
+        logger.debug(f'{exercises_voc=}')
+        if not black_list:
+            black_list = []
+        for exercise in blocked_exercises:
+            if exercise['exercise_id'] not in black_list:
+                black_list.append(exercise['exercise_id'])
+        logger.debug(f'{black_list=}')
+        for ex in black_list:
+            if len(exercises_voc) > 1:
+                exercises_voc.pop(ex, '')
+        rare_exercise = max(exercises_voc, key=exercises_voc.get)
+        logger.debug(f'{rare_exercise=}')
+        #  4. Создаём тренировку с выбранным упражнением, для этого находим предыдущий воркаут с ним.
+        workout = db.select_filtered_sorted_rows(table='approaches', fetch='one',
+                                                 sql2=f' ORDER BY approach_id DESC',
+                                                 user_id=user_id, exercise_id=rare_exercise)
+        if workout:
+            workout_id = workout['workout_id']
+            logger.debug(f'{workout_id=}')
+            approaches = db.select_filtered_sorted_rows(table='approaches', fetch='all',
+                                                        sql2=f' ORDER BY number ASC',
+                                                        workout_id=workout_id)
+            logger.debug(f'{approaches=}')
+            old_wrkt = [Approach(rare_exercise, approach['dynamic'], False) if i in {0, 2, 3} else
+                        Approach(rare_exercise, approach['dynamic'], True)
+                        for i, approach in enumerate(approaches)]
+            logger.debug(f'{old_wrkt=}')
+            return generate_new_split_new(old_wrkt)
+        else:
+            return generate_new_split_new(exercise_id=rare_exercise)
 
 
 if __name__ == '__main__':

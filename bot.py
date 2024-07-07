@@ -102,7 +102,7 @@ async def main():
         # db.add_media_type()
         # db.add_user_endurance()
 
-        db.regenerate_approaches()
+        # db.regenerate_approaches()
 
     except Exception as e:
         logger.exception(e)
