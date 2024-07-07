@@ -224,7 +224,7 @@ async def save_approach(data, db: SQLiteDatabase, message):
     if 'workout_number' not in data:
         data['workout_number'] = 0
     if approach == 1:
-        db.add_workout(user_id=user['user_id'], exercise_id=exercise_id, approaches=approach)
+        db.add_workout(user_id=user['user_id'], date=datetime.utcnow().isoformat(), exercise_id=exercise_id, approaches=approach)
         data['workout_number'] = db.select_filtered_sorted_rows(table='workouts', fetch='one',
                                                                 sql2=f' ORDER BY workout_id DESC',
                                                                 user_id=user['user_id'])['workout_id']
@@ -324,7 +324,8 @@ async def generate_solo_workout(db: SQLiteDatabase, user_id: int, exercise_id: i
     logger.debug(f'generate_solo_workout {exercise_id=}')
     approaches = db.select_filtered_sorted_rows(table='approaches', fetch='one', sql2=f' ORDER BY approach_id DESC',
                                                 user_id=user_id, exercise_id=exercise_id)
-    if approaches and (datetime.utcnow() - datetime.fromisoformat(approaches['date'])) < timedelta(days=29):
+    if (approaches and approaches['date']
+            and (datetime.utcnow() - datetime.fromisoformat(approaches['date'])) < timedelta(days=29)):
         approaches = db.select_filtered_sorted_rows(table='approaches', fetch='all', sql2=f' ORDER BY approach_id ASC',
                                                     workout_id=approaches['workout_id'], exercise_id=exercise_id)
         logger.debug('generate_solo_workout approaches')
