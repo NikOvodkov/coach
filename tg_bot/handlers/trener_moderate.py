@@ -38,16 +38,17 @@ async def moderate_material(message: Message, state: FSMContext, db: SQLiteDatab
     # data['row'] = db.select_table('materials')[0]
     if row['exercise_id'] is not None:
         oldrow = db.select_rows(table='exercises', fetch='one', exercise_id=row['exercise_id'])
-        if oldrow['media_type'] == 'photo':
-            msg = await message.answer_photo(photo=oldrow["file_id"], caption='Текущая версия')
-        else:
-            msg = await message.answer_document(document=oldrow["file_id"], caption='Текущая версия')
-        data['delete_list'].append(msg.message_id)
-        if row['media_type'] == 'photo':
-            msg = await message.answer_photo(photo=row["file_id"], caption='На модерацию')
-        else:
-            msg = await message.answer_document(document=row["file_id"], caption='На модерацию')
-        data['delete_list'].append(msg.message_id)
+        if row["file_id"]:
+            if oldrow['media_type'] == 'photo':
+                msg = await message.answer_photo(photo=oldrow["file_id"], caption='Текущая версия')
+            else:
+                msg = await message.answer_document(document=oldrow["file_id"], caption='Текущая версия')
+            data['delete_list'].append(msg.message_id)
+            if row['media_type'] == 'photo':
+                msg = await message.answer_photo(photo=row["file_id"], caption='На модерацию')
+            else:
+                msg = await message.answer_document(document=row["file_id"], caption='На модерацию')
+            data['delete_list'].append(msg.message_id)
         msg = await message.answer(text=f'Текущая версия:\n'
                                         f'{oldrow["type"]=} {oldrow["name"]=} \n{oldrow["description"]=} \n'
                                         f'{oldrow["description_text_link"]=} {oldrow["description_video_link"]=}'
