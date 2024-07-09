@@ -392,7 +392,7 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
         masses = [1, 0.21, 0.55, 0.06, 0.06, 0.12]
         works = db.sum_filtered_sorted_rows(table='approaches', cells=cells, sql2=f' AND date > "{week_ago}"',
                                             tuple_=True, fetch='one', user_id=user_id)
-        works = works[0]
+        works = works
         works = list(map(truediv, works, masses))
         cells = dict(zip(cells, works))
         min_cell = min(cells, key=cells.get)
