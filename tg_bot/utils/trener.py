@@ -273,8 +273,9 @@ async def count_exercises_levels(db: SQLiteDatabase):
     :return:
     """
     approaches = db.select_table(table='approaches')
+    # собираем словарь из таблицы подходов, ключ - кортеж (exercise_id, user_id)
+    # значение - список [макс кол-во повторений, общее количество подходов в этом упражнении, сложность=1/повторения]
     exercises_users = {}
-
     for approach in approaches:
         ind = (approach['exercise_id'], approach['user_id'])
         if ind in exercises_users:
@@ -283,6 +284,8 @@ async def count_exercises_levels(db: SQLiteDatabase):
                                     1 / max(exercises_users[ind][0], approach['dynamic'])]
         else:
             exercises_users[ind] = [approach['dynamic'], 1, 1 / approach['dynamic']]
+    # собираем словарь пользователей, ключ - user_id
+    # значение - общее количество подходов во всех упражнениях
     users = {}
     for ind in exercises_users:
         if ind[1] in users:
@@ -297,6 +300,8 @@ async def count_exercises_levels(db: SQLiteDatabase):
                                'abs': exercise['abs'] * exercises_users[ind][2],
                                'back': exercise['back'] * exercises_users[ind][2]},
                         user_id=ind[1], exercise_id=ind[0])
+    # собираем словарь упражнений, ключ - exercise_id
+    # значение - список [сумма сложностей по всем пользователям, количество пользователей]
     exercises = {}
     for ind in exercises_users:
         if (users[ind[1]] > 100) and (exercises_users[ind][1] > 10):
@@ -304,6 +309,7 @@ async def count_exercises_levels(db: SQLiteDatabase):
                 exercises[ind[0]] = [exercises[ind[0]][0] + exercises_users[ind][2], exercises[ind[0]][1] + 1]
             else:
                 exercises[ind[0]] = [exercises_users[ind][2], 1]
+    # в этом цикле рассчитываем сложность упражнений делением суммы сложностей на количество пользователей
     for exercise_id in exercises:
         exercise = db.select_rows('exercises', fetch='one', exercise_id=exercise_id)
         k = exercises[exercise_id][0] / exercises[exercise_id][1]
@@ -385,11 +391,12 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
         cells = ['work', 'arms', 'legs', 'chest', 'abs', 'back']
         masses = [1, 0.21, 0.55, 0.06, 0.06, 0.12]
         works = db.sum_filtered_sorted_rows(table='approaches', cells=cells, sql2=f' AND date > "{week_ago}"',
-                                            tuple_=True, fetch='all', user_id=user_id)
+                                            tuple_=True, fetch='one', user_id=user_id)
         works = works[0]
         works = list(map(truediv, works, masses))
         cells = dict(zip(cells, works))
         min_cell = min(cells, key=cells.get)
+        logger.warning(f'last week works {user_id=} {cells=} {min_cell=}')
         #  3. Берём все упражнения и сортируем сначала в порядке убывания нагрузки на нужную группу,
         #  затем в порядке частоты встречаемости за последний месяц. Затем удаляем те, что в ЧС.
         #  Если min_cell = None, то повторяем последний воркаут
@@ -410,7 +417,7 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
                 exercises_voc[exercise['exercise_id']][0] -= 0.5
             else:
                 exercises_voc[exercise['exercise_id']][0] -= 1
-        logger.debug(f'{exercises_voc=}')
+        logger.warning(f'last months exercises {exercises_voc=}')
         if not black_list:
             black_list = []
         for exercise in blocked_exercises:
@@ -421,7 +428,7 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
             if len(exercises_voc) > 1:
                 exercises_voc.pop(ex, '')
         rare_exercise = max(exercises_voc, key=exercises_voc.get)
-        logger.debug(f'{rare_exercise=}')
+        logger.warning(f'{rare_exercise=}')
         #  4. Создаём тренировку с выбранным упражнением, для этого находим предыдущий воркаут с ним.
         workout = db.select_filtered_sorted_rows(table='approaches', fetch='one',
                                                  sql2=f' ORDER BY approach_id DESC',

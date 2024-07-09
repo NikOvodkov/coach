@@ -92,17 +92,14 @@ async def main():
         logger.info('Создаём подключение к базе данных')
 
         # разовые коррекции БД:
-        # db.delete_table('users_weights_long')
-        # db.delete_table('users_base_long')
-        # db.delete_rows('exercises', exercise_id=34)
-        # db.delete_rows('exercises', exercise_id=35)
-        # db.delete_rows('exercises', exercise_id=31)
-        # db.change_muscles_table()
-        # db.add_muscles_to_exercises()
-        # db.add_media_type()
-        # db.add_user_endurance()
-
         # db.regenerate_approaches()
+
+        db.delete_table('exercises_muscles')
+        db.update_cells(table='exercises', cells={'type': 2}, exercise_id=2)
+        db.update_cells(table='exercises', cells={'type': 2}, exercise_id=6)
+        db.update_cells(table='exercises', cells={'type': 2}, exercise_id=7)
+        db.update_cells(table='exercises', cells={'type': 2}, exercise_id=9)
+        db.update_cells(table='exercises', cells={'type': 2}, exercise_id=26)
 
     except Exception as e:
         logger.exception(e)
