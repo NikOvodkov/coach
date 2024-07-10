@@ -388,11 +388,12 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
         max_work = max(dates, key=dates.get)
         #  2. Суммируем относительную (работа/кг мышцы) недельную работу по каждой мышце,
         #      выясняем у какой меньше всего, будем прорабатывать её.
-        cells = ['work', 'arms', 'legs', 'chest', 'abs', 'back']
-        masses = [1, 0.21, 0.55, 0.06, 0.06, 0.12]
+        cells = ['arms', 'legs', 'chest', 'abs', 'back']
+        # cells = ['work', 'arms', 'legs', 'chest', 'abs', 'back']
+        # masses = [1, 0.21, 0.55, 0.06, 0.06, 0.12]
+        masses = [0.21, 0.55, 0.06, 0.06, 0.12]
         works = db.sum_filtered_sorted_rows(table='approaches', cells=cells, sql2=f' AND date > "{week_ago}"',
                                             tuple_=True, fetch='one', user_id=user_id)
-        works = works
         works = list(map(truediv, works, masses))
         cells = dict(zip(cells, works))
         min_cell = min(cells, key=cells.get)

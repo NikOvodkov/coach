@@ -94,12 +94,12 @@ async def main():
         # разовые коррекции БД:
         # db.regenerate_approaches()
 
-        db.delete_table('exercises_muscles')
-        db.update_cells(table='exercises', cells={'type': 2}, exercise_id=2)
-        db.update_cells(table='exercises', cells={'type': 2}, exercise_id=6)
-        db.update_cells(table='exercises', cells={'type': 2}, exercise_id=7)
-        db.update_cells(table='exercises', cells={'type': 2}, exercise_id=9)
-        db.update_cells(table='exercises', cells={'type': 2}, exercise_id=26)
+        # db.delete_table('exercises_muscles')
+        # db.update_cells(table='exercises', cells={'type': 2}, exercise_id=2)
+        # db.update_cells(table='exercises', cells={'type': 2}, exercise_id=6)
+        # db.update_cells(table='exercises', cells={'type': 2}, exercise_id=7)
+        # db.update_cells(table='exercises', cells={'type': 2}, exercise_id=9)
+        # db.update_cells(table='exercises', cells={'type': 2}, exercise_id=26)
 
     except Exception as e:
         logger.exception(e)
