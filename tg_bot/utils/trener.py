@@ -257,6 +257,15 @@ async def fill_exercises_users(user_id: int, db: SQLiteDatabase):
     return
 
 
+async def is_good_level(exercise_id: int, user_id: int, db: SQLiteDatabase):
+    e_r = db.select_rows(table='exercises_users', fetch='one', user_id=user_id, exercise_id=exercise_id)
+    levels = [e_r['arms'], e_r['legs'], e_r['chest'], e_r['abs'], e_r['back']]
+    if None in levels:
+        return False
+    else:
+        return 0.01 <= max(levels) <= 0.2
+
+
 async def count_exercises_levels(db: SQLiteDatabase):
     """
     Функция рассчитывает уровни сложности упражнений на основе количества повторений в подходах пользователей.
@@ -267,52 +276,64 @@ async def count_exercises_levels(db: SQLiteDatabase):
     б) Сложность для пользователя рассчитываем, как 1/max_rep, и умножаем на участие каждой группы мышц, т.е. 0.1 * 1/Й и т.д.
     в) На основе отфильтрованных пользователей (более 25 подходов к упражнению, более 100 подходов всего)
        рассчитываем сложность упражнений и записываем в базу упражнений
+    г) заполнить таблицу exercises_users личными рекордами где они есть, из таблицы exercises где их нет
+    д) При окончании тренировки заполнить таблицу exercises_users по упражнению текущим упражнением
     :param data:
     :param db:
     :param message:
     :return:
     """
     approaches = db.select_table(table='approaches')
+    logger.debug(f'enter count_exercises_levels')
     # собираем словарь из таблицы подходов, ключ - кортеж (exercise_id, user_id)
     # значение - список [макс кол-во повторений, общее количество подходов в этом упражнении, сложность=1/повторения]
     exercises_users = {}
     for approach in approaches:
         ind = (approach['exercise_id'], approach['user_id'])
         if ind in exercises_users:
-            exercises_users[ind] = [max(exercises_users[ind][0], approach['dynamic']),
-                                    exercises_users[ind][1] + 1,
-                                    1 / max(exercises_users[ind][0], approach['dynamic'])]
+            # exercises_users[ind] = [max(exercises_users[ind][0], approach['dynamic']),
+            #                         exercises_users[ind][1] + 1,
+            #                         1 / max(exercises_users[ind][0], approach['dynamic'])]
+            exercises_users[ind] = {'dynamic': max(exercises_users[ind]['dynamic'], approach['dynamic']),
+                                    'approaches': exercises_users[ind]['approaches'] + 1,
+                                    'level': 1 / max(exercises_users[ind]['dynamic'], approach['dynamic'])}
         else:
-            exercises_users[ind] = [approach['dynamic'], 1, 1 / approach['dynamic']]
+            # exercises_users[ind] = [approach['dynamic'], 1, 1 / approach['dynamic']]
+            exercises_users[ind] = {'dynamic': approach['dynamic'], 'approaches': 1, 'level': 1 / approach['dynamic']}
     # собираем словарь пользователей, ключ - user_id
     # значение - общее количество подходов во всех упражнениях
+    logger.debug(f'approaches counted count_exercises_levels')
     users = {}
     for ind in exercises_users:
         if ind[1] in users:
-            users[ind[1]] += exercises_users[ind][1]
+            users[ind[1]] += exercises_users[ind]['approaches']
         else:
-            users[ind[1]] = exercises_users[ind][1]
+            users[ind[1]] = exercises_users[ind]['approaches']
         exercise = db.select_rows('exercises', fetch='one', exercise_id=ind[0])
         db.update_cells(table='exercises_users',
-                        cells={'arms': exercise['arms'] * exercises_users[ind][2],
-                               'legs': exercise['legs'] * exercises_users[ind][2],
-                               'chest': exercise['chest'] * exercises_users[ind][2],
-                               'abs': exercise['abs'] * exercises_users[ind][2],
-                               'back': exercise['back'] * exercises_users[ind][2]},
+                        cells={'arms': exercise['arms'] * exercises_users[ind]['level'],
+                               'legs': exercise['legs'] * exercises_users[ind]['level'],
+                               'chest': exercise['chest'] * exercises_users[ind]['level'],
+                               'abs': exercise['abs'] * exercises_users[ind]['level'],
+                               'back': exercise['back'] * exercises_users[ind]['level']},
                         user_id=ind[1], exercise_id=ind[0])
     # собираем словарь упражнений, ключ - exercise_id
     # значение - список [сумма сложностей по всем пользователям, количество пользователей]
+    logger.debug(f'exercises_users counted count_exercises_levels')
     exercises = {}
     for ind in exercises_users:
-        if (users[ind[1]] > 100) and (exercises_users[ind][1] > 10):
+        if (users[ind[1]] > 100) and (exercises_users[ind]['approaches'] > 10):
             if ind[0] in exercises:
-                exercises[ind[0]] = [exercises[ind[0]][0] + exercises_users[ind][2], exercises[ind[0]][1] + 1]
+                # exercises[ind[0]] = [exercises[ind[0]][0] + exercises_users[ind]['level'], exercises[ind[0]][1] + 1]
+                exercises[ind[0]] = {'sum_level': exercises[ind[0]]['sum_level'] + exercises_users[ind]['level'],
+                                     'sum_user': exercises[ind[0]]['sum_user'] + 1}
             else:
-                exercises[ind[0]] = [exercises_users[ind][2], 1]
+                # exercises[ind[0]] = [exercises_users[ind]['level'], 1]
+                exercises[ind[0]] = {'sum_level': exercises_users[ind]['level'], 'sum_user': 1}
     # в этом цикле рассчитываем сложность упражнений делением суммы сложностей на количество пользователей
     for exercise_id in exercises:
         exercise = db.select_rows('exercises', fetch='one', exercise_id=exercise_id)
-        k = exercises[exercise_id][0] / exercises[exercise_id][1]
+        k = exercises[exercise_id]['sum_level'] / exercises[exercise_id]['sum_user']
         db.update_cells(table='exercises',
                         cells={'level_arms': exercise['arms'] * k,
                                'level_legs': exercise['legs'] * k,
@@ -320,9 +341,21 @@ async def count_exercises_levels(db: SQLiteDatabase):
                                'level_abs': exercise['abs'] * k,
                                'level_back': exercise['back'] * k},
                         exercise_id=exercise_id)
+    # в этом цикле заполняем сложности упражнений в таблице exercises_users (если они пустые) значениями
+    # из таблицы exercises
+    logger.debug(f'exercises counted count_exercises_levels')
+    exercises_users = db.select_table('exercises_users')
+    exercises = db.select_table('exercises')
+    cells = ['arms', 'legs', 'chest', 'abs', 'back']
+    for exercise_user in exercises_users:
+        for work in cells:
+            if exercise_user[work] is not None:
+                exercise_work = db.select_rows(table='exercises', fetch='one', exercise_id=exercise_user['exercise_id'])
+                db.update_cells(table='exercises_users', cells={work: exercise_work['level_' + work]},
+                                user_id=exercise_user['user_id'], exercise_id=exercise_user['exercise_id'])
     logger.debug(f'{exercises_users=}')
     logger.debug(f'{users=}')
-    logger.debug(f'{exercises=} {len(exercises)=}')
+    logger.debug(f'{len(exercises)=}')
     return
 
 
@@ -403,6 +436,7 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
         #  Если min_cell = None, то повторяем последний воркаут
         exercises = (db.select_rows(table='exercises', fetch='all', type=1) +
                      db.select_rows(table='exercises', fetch='all', type=2))
+        # ключ - exercise_id, значение - список [частота встречаемости упражнения, процент использования нужных мышц]
         exercises_voc = {}
         for exercise in exercises:
             exercises_voc[exercise['exercise_id']] = [0, exercise[min_cell]]
@@ -416,8 +450,10 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
         for exercise in exercises:
             if exercise['exercise_id'] in favourite_exercises:
                 exercises_voc[exercise['exercise_id']][0] -= 0.5
-            else:
+            elif await is_good_level(exercise['exercise_id'], user_id, db):
                 exercises_voc[exercise['exercise_id']][0] -= 1
+            else:
+                exercises_voc[exercise['exercise_id']][0] -= 2
         logger.warning(f'last months exercises {exercises_voc=}')
         if not black_list:
             black_list = []
