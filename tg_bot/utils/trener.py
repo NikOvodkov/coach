@@ -467,7 +467,7 @@ async def get_workout_dic(voc, muscle_load=True):
                 voc2[v] = voc[v]
     else:
         voc2 = voc
-        voc = [[voc2[d]['frequency'], voc2[d]['level'], voc2[d]['muscle_load'], d] for d in voc2]
+    voc = [[voc2[d]['frequency'], voc2[d]['level'], voc2[d]['muscle_load'], d] for d in voc2]
     voc = sorted(voc, reverse=True)
     voc2 = []
     for v in voc:
