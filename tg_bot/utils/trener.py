@@ -18,46 +18,6 @@ class Approach(NamedTuple):
     max: bool = None
 
 
-class Split(NamedTuple):
-    s1: int = 0
-    s2: int = 0
-    s3: int = 0
-    s4: int = 0
-    s5: int = 0
-
-
-def generate_new_split_split(split: Split) -> Split:
-    new_split = Split(
-        max(1, math.floor(max(split) / 2)),
-        max(split),
-        math.ceil(max(split) / 2),
-        math.ceil(max(split) / 2),
-        max(0, sum(split) - max(1, math.floor(max(split) / 2)) - max(split) - 2 * math.ceil(max(split) / 2) + 1)
-    )
-    return tuple(new_split)
-
-
-def generate_new_split(set_str: str) -> str:
-    set_symbols = set_str.split(' ')
-    set_old = list(map(int, set_symbols))
-    set_new = [0, 0, 0, 0, 0]
-    # первый подход = половине от максимума на прошлой тренировке
-    set_new[0] = max(1, math.floor(max(set_old) / 2))
-    # второй подход = максимуму+ на прошлой тренировке
-    set_new[1] = max(set_old)
-    # третий подход = половине от максимума на прошлой тренировке + 1
-    set_new[2] = math.ceil(max(set_old) / 2) + 1
-    # четвёртый подход = половине от максимума на прошлой тренировке
-    set_new[3] = math.ceil(max(set_old) / 2)
-    # пятый подход
-    set_new[4] = max(1, sum(set_old) - set_new[0] - set_new[1] - set_new[2] - set_new[3] + 1)
-    if set_new[4] > set_new[1] - 2:
-        set_new[1] += 1
-        set_new[4] = max(1, sum(set_old) - set_new[0] - set_new[1] - set_new[2] - set_new[3] + 1)
-    set_new = list(map(str, set_new))
-    return ' '.join(set_new)
-
-
 # Генерирует новый сплит из 5 подходов, даже если старого не было или в нём было другое число подходов
 def generate_new_split_new(old_split: list[Approach] = None, exercise_id: int = 4) -> list[Approach]:
     if old_split:
@@ -83,6 +43,7 @@ def generate_new_split_new(old_split: list[Approach] = None, exercise_id: int = 
     new_split[3] = Approach(exercise_id, set_new[3], False)
     # пятый подход
     set_new[4] = max(1, sum(set_old) - set_new[0] - set_new[1] - set_new[2] - set_new[3] + 1)
+    set_new[4] = min(max(set_old), set_new[4])
     new_split[4] = Approach(exercise_id, set_new[4], True)
     if set_new[4] > set_new[1] - 2:
         set_new[1] += 1
@@ -363,8 +324,7 @@ async def generate_solo_workout(db: SQLiteDatabase, user_id: int, exercise_id: i
     logger.debug(f'generate_solo_workout {exercise_id=}')
     approaches = db.select_filtered_sorted_rows(table='approaches', fetch='one', sql2=f' ORDER BY approach_id DESC',
                                                 user_id=user_id, exercise_id=exercise_id)
-    if (approaches and approaches['date']
-            and (datetime.utcnow() - datetime.fromisoformat(approaches['date'])) < timedelta(days=29)):
+    if approaches and approaches['date']:
         approaches = db.select_filtered_sorted_rows(table='approaches', fetch='all', sql2=f' ORDER BY approach_id ASC',
                                                     workout_id=approaches['workout_id'], exercise_id=exercise_id)
         logger.debug('generate_solo_workout approaches')
@@ -436,10 +396,13 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
         #  Если min_cell = None, то повторяем последний воркаут
         exercises = (db.select_rows(table='exercises', fetch='all', type=1) +
                      db.select_rows(table='exercises', fetch='all', type=2))
-        # ключ - exercise_id, значение - список [частота встречаемости упражнения, процент использования нужных мышц]
+        # ключ - exercise_id, значение -{частота встречаемости упражнения, процент использования нужных мышц, сложность}
         exercises_voc = {}
         for exercise in exercises:
-            exercises_voc[exercise['exercise_id']] = [0, exercise[min_cell]]
+            level = db.select_rows(table='exercises_users', fetch='one',
+                                   exercise_id=exercise['exercise_id'], user_id=user_id)[min_cell]
+            exercises_voc[exercise['exercise_id']] = {'frequency': 0, 'muscle_load': exercise[min_cell], 'level': level}
+            # exercises_voc[exercise['exercise_id']] = [0, exercise[min_cell]]
         exercises = db.select_filtered_sorted_rows(table='approaches', fetch='all',
                                                    sql2=f' AND date > "{month_ago}"',
                                                    user_id=user_id)
@@ -449,11 +412,11 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
         blocked_exercises = db.select_rows(table='exercises_users', fetch='all', user_id=user_id, list=0)
         for exercise in exercises:
             if exercise['exercise_id'] in favourite_exercises:
-                exercises_voc[exercise['exercise_id']][0] -= 0.5
+                exercises_voc[exercise['exercise_id']]['frequency'] -= 0.5
             elif await is_good_level(exercise['exercise_id'], user_id, db):
-                exercises_voc[exercise['exercise_id']][0] -= 1
+                exercises_voc[exercise['exercise_id']]['frequency'] -= 1
             else:
-                exercises_voc[exercise['exercise_id']][0] -= 2
+                exercises_voc[exercise['exercise_id']]['frequency'] -= 2
         logger.warning(f'last months exercises {exercises_voc=}')
         if not black_list:
             black_list = []
@@ -464,12 +427,12 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
         for ex in black_list:
             if len(exercises_voc) > 1:
                 exercises_voc.pop(ex, '')
-        rare_exercise = max(exercises_voc, key=exercises_voc.get)
+        rare_exercise = await get_workout_dic(exercises_voc)
         logger.warning(f'{rare_exercise=}')
         #  4. Создаём тренировку с выбранным упражнением, для этого находим предыдущий воркаут с ним.
         workout = db.select_filtered_sorted_rows(table='approaches', fetch='one',
                                                  sql2=f' ORDER BY approach_id DESC',
-                                                 user_id=user_id, exercise_id=rare_exercise)
+                                                 user_id=user_id, exercise_id=rare_exercise[0]['exercise_id'])
         if workout:
             workout_id = workout['workout_id']
             logger.debug(f'{workout_id=}')
@@ -477,14 +440,45 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
                                                         sql2=f' ORDER BY number ASC',
                                                         workout_id=workout_id)
             logger.debug(f'{approaches=}')
-            old_wrkt = [Approach(rare_exercise, approach['dynamic'], False) if i in {0, 2, 3} else
-                        Approach(rare_exercise, approach['dynamic'], True)
+            old_wrkt = [Approach(rare_exercise[0]['exercise_id'], approach['dynamic'], False) if i in {0, 2, 3} else
+                        Approach(rare_exercise[0]['exercise_id'], approach['dynamic'], True)
                         for i, approach in enumerate(approaches)]
             logger.debug(f'{old_wrkt=}')
             return generate_new_split_new(old_wrkt)
         else:
-            return generate_new_split_new(exercise_id=rare_exercise)
+            return generate_new_split_new(exercise_id=rare_exercise[0]['exercise_id'])
 
+
+async def get_workout_dic(voc, muscle_load=True):
+    """
+    Сортируем словарь словарей сначала обратно по muscle_load, затем обратно по frequency, затем обратно по level
+    1. Выбираем не менее 5 упражнений с muscle_load>=0.2
+    2. Выбираем из них 5 упражнений с максимальным frequency.
+    3. Сортируем 5 оставшихся упражнений по убыванию сложности.
+
+    :param muscle_load:
+    :param voc:
+    :return:
+    """
+    if muscle_load:
+        voc2 = {}
+        for v in voc:
+            if voc[v]['muscle_load'] >= 0.2:
+                voc2[v] = voc[v]
+    else:
+        voc2 = voc
+        voc = [[voc2[d]['frequency'], voc2[d]['level'], voc2[d]['muscle_load'], d] for d in voc2]
+    voc = sorted(voc, reverse=True)
+    voc2 = []
+    for v in voc:
+        if len(voc2) < 5:
+            voc2.append(v)
+        elif voc2[-1][0] == v[0]:
+            voc2.append(v)
+        logger.debug(f'{voc2=}')
+    voc = sorted(voc2, key=lambda a: a[1], reverse=True)
+    voc = {i: {'exercise_id': v[3], 'frequency': v[0], 'muscle_load': v[2], 'level': v[1]} for i, v in enumerate(voc)}
+    return voc
 
 if __name__ == '__main__':
     # user_split = Split(*map(int, input('Input split: ').split()))

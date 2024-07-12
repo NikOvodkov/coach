@@ -21,7 +21,7 @@ from tg_bot.services.ufuncs import clear_delete_list
 from tg_bot.states.trener import FSMTrener
 from tg_bot.utils.life_calendar import generate_image_calendar
 from tg_bot.states.life_calendar import FSMLifeCalendar
-from tg_bot.utils.trener import generate_new_split, Split, Approach, gnrt_wrkt, show_exercise, award_user, save_approach, fill_exercises_users
+from tg_bot.utils.trener import Approach, gnrt_wrkt, show_exercise, award_user, save_approach, fill_exercises_users
 
 # Инициализируем роутер уровня модуля
 router = Router()
