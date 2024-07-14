@@ -347,7 +347,6 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
                                                    user_id=user_id)
     if last_approach:
         break_time = datetime.utcnow() - datetime.fromisoformat(last_approach['date'])
-        # Если перерыв 29 дней и более, начинаем как с нуля, с тестов типа 1 1 1 1 1.
 
         # Если перерыв менее 7 дней, запускаем стандартного автотренера.
     else:
@@ -382,15 +381,12 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
         #  2. Суммируем относительную (работа/кг мышцы) недельную работу по каждой мышце,
         #      выясняем у какой меньше всего, будем прорабатывать её.
         cells = ['arms', 'legs', 'chest', 'abs', 'back']
-        # cells = ['work', 'arms', 'legs', 'chest', 'abs', 'back']
-        # masses = [1, 0.21, 0.55, 0.06, 0.06, 0.12]
         masses = [0.21, 0.55, 0.06, 0.06, 0.12]
         works = db.sum_filtered_sorted_rows(table='approaches', cells=cells, sql2=f' AND date > "{week_ago}"',
                                             tuple_=True, fetch='one', user_id=user_id)
         works = list(map(truediv, works, masses))
         cells = dict(zip(cells, works))
         min_cell = min(cells, key=cells.get)
-        logger.warning(f'last week works {user_id=} {cells=} {min_cell=}')
         #  3. Берём все упражнения и сортируем сначала в порядке убывания нагрузки на нужную группу,
         #  затем в порядке частоты встречаемости за последний месяц. Затем удаляем те, что в ЧС.
         #  Если min_cell = None, то повторяем последний воркаут
@@ -398,11 +394,21 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
                      db.select_rows(table='exercises', fetch='all', type=2))
         # ключ - exercise_id, значение -{частота встречаемости упражнения, процент использования нужных мышц, сложность}
         exercises_voc = {}
+        cells = ['arms', 'legs', 'chest', 'abs', 'back']
         for exercise in exercises:
-            level = db.select_rows(table='exercises_users', fetch='one',
-                                   exercise_id=exercise['exercise_id'], user_id=user_id)[min_cell]
-            exercises_voc[exercise['exercise_id']] = {'frequency': 0, 'muscle_load': exercise[min_cell], 'level': level}
-            # exercises_voc[exercise['exercise_id']] = [0, exercise[min_cell]]
+            muscles = {}
+            exercises_users = db.select_rows(table='exercises_users', fetch='one',
+                                             exercise_id=exercise['exercise_id'], user_id=user_id)
+            master_level = 0
+            for cell in cells:
+                if exercises_users[cell] > master_level:
+                    master_level = exercises_users[cell]
+                muscles[cell] = {'load': exercise[cell], 'level': exercises_users[cell]}
+            exercises_voc[exercise['exercise_id']] = {'frequency': 0, 'muscles': muscles, 'master_level': master_level}
+        # for exercise in exercises:
+        #     level = db.select_rows(table='exercises_users', fetch='one',
+        #                            exercise_id=exercise['exercise_id'], user_id=user_id)[min_cell]
+        #     exercises_voc[exercise['exercise_id']] = {'frequency': 0, 'muscle_load': exercise[min_cell], 'level': level}
         exercises = db.select_filtered_sorted_rows(table='approaches', fetch='all',
                                                    sql2=f' AND date > "{month_ago}"',
                                                    user_id=user_id)
@@ -427,7 +433,7 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
         for ex in black_list:
             if len(exercises_voc) > 1:
                 exercises_voc.pop(ex, '')
-        rare_exercise = await get_workout_dic(exercises_voc)
+        rare_exercise = await get_workout_dic(exercises_voc, min_cell)
         logger.warning(f'{rare_exercise=}')
         #  4. Создаём тренировку с выбранным упражнением, для этого находим предыдущий воркаут с ним.
         workout = db.select_filtered_sorted_rows(table='approaches', fetch='one',
@@ -449,26 +455,33 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
             return generate_new_split_new(exercise_id=rare_exercise[0]['exercise_id'])
 
 
-async def get_workout_dic(voc, muscle_load=True):
+async def get_workout_dic(voc, muscle: str = None):
     """
-    Сортируем словарь словарей сначала обратно по muscle_load, затем обратно по frequency, затем обратно по level
+    Если мышца не выбрана:
+    1. Выбираем не менее 5 упражнений с максимальным frequency.
+    2. Сортируем их по убыванию сложности. Сложность упражнения вычисляем, как максимальную сложность по всем мышцам.
+    Если мышца выбрана:
     1. Выбираем не менее 5 упражнений с muscle_load>=0.2
     2. Выбираем из них 5 упражнений с максимальным frequency.
     3. Сортируем 5 оставшихся упражнений по убыванию сложности.
 
+    :param muscle:
     :param muscle_load:
     :param voc:
     :return:
     """
-    if muscle_load:
+    logger.debug(f'get_workout_dic {muscle=} {voc=}')
+    if muscle:
         voc2 = {}
         for v in voc:
-            if voc[v]['muscle_load'] >= 0.2:
+            if voc[v]['muscles'][muscle]['load'] >= 0.2:
+                voc[v]['master_level'] = voc[v]['muscles'][muscle]['level']
                 voc2[v] = voc[v]
     else:
         voc2 = voc
-    voc = [[voc2[d]['frequency'], voc2[d]['level'], voc2[d]['muscle_load'], d] for d in voc2]
-    voc = sorted(voc, reverse=True)
+    voc = [[voc2[d]['frequency'], voc2[d]['master_level'], voc2[d]['muscles'], d] for d in voc2]
+    voc = sorted(voc, key=lambda a: a[0], reverse=True)
+    logger.debug(f'SEREDINA get_workout_dic {voc=}')
     voc2 = []
     for v in voc:
         if len(voc2) < 5:
@@ -477,8 +490,10 @@ async def get_workout_dic(voc, muscle_load=True):
             voc2.append(v)
         logger.debug(f'{voc2=}')
     voc = sorted(voc2, key=lambda a: a[1], reverse=True)
-    voc = {i: {'exercise_id': v[3], 'frequency': v[0], 'muscle_load': v[2], 'level': v[1]} for i, v in enumerate(voc)}
+    voc = {i: {'exercise_id': v[3], 'frequency': v[0], 'muscles': v[2], 'master_level': v[1]} for i, v in enumerate(voc)}
+    logger.debug(f'get_workout_dic end {voc=}')
     return voc
+
 
 if __name__ == '__main__':
     # user_split = Split(*map(int, input('Input split: ').split()))
