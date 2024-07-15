@@ -401,7 +401,7 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
                                              exercise_id=exercise['exercise_id'], user_id=user_id)
             master_level = 0
             for cell in cells:
-                if exercises_users[cell] > master_level:
+                if exercises_users[cell] is not None and exercises_users[cell] > master_level:
                     master_level = exercises_users[cell]
                 muscles[cell] = {'load': exercise[cell], 'level': exercises_users[cell]}
             exercises_voc[exercise['exercise_id']] = {'frequency': 0, 'muscles': muscles, 'master_level': master_level}
