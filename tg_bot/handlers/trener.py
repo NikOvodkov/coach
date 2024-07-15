@@ -235,8 +235,9 @@ async def enter_data_06new(message: Message, bot: Bot, state: FSMContext, db: SQ
 
 
 @router.message(F.text.lower().strip() == 'да', StateFilter(FSMTrener.workout_end))
-@router.message(F.text, StateFilter(FSMTrener.show_exercises))
 @router.message(F.text.lower().strip() == 'заменить', StateFilter(FSMTrener.workout))
+@router.message(F.text.isdigit(), StateFilter(FSMTrener.workout))
+@router.message(F.text, StateFilter(FSMTrener.show_exercises))
 # @router.message(F.text.lower().strip() == 'выбрать автоматически', StateFilter(FSMTrener.workout))
 async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot):
     """
@@ -266,7 +267,11 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase,
         if len(data['black_list']) > 27:
             data['black_list'] = []
         logger.debug(f'{data["black_list"]=}')
-    data['new_workout'] = await gnrt_wrkt(user_id=message.from_user.id, db=db, black_list=data['black_list'])
+    if message.text.lower().isdigit():
+        data['new_workout'] = await gnrt_wrkt(user_id=message.from_user.id, db=db, old_ex=int(message.text),
+                                              black_list=data['black_list'])
+    else:
+        data['new_workout'] = await gnrt_wrkt(user_id=message.from_user.id, db=db, black_list=data['black_list'])
     logger.debug(f'{data["new_workout"][0][0]=}')
     msg = await show_exercise(message, db, data["new_workout"][0][0], choose_exercise)
     data['delete_list'].append(msg.message_id)
@@ -276,46 +281,11 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase,
     await state.set_state(FSMTrener.workout)
 
 
-@router.message(F.text.lower().strip() == 'оставить', StateFilter(FSMTrener.workout))
-@router.message(F.text.isdigit(), StateFilter(FSMTrener.workout))
-async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase):
-    data = await state.get_data()
-    if message.text.lower().strip() == 'оставить':
-        exercise_id = data["new_workout"][0][0]
-        data['delete_list'].pop() if data['delete_list'] else ''
-    else:
-        exercise_id = int(message.text)
-        await show_exercise(message, db, exercise_id, nokeyboard)
-        data['new_workout'] = await gnrt_wrkt(user_id=message.from_user.id, db=db, old_ex=exercise_id,
-                                              black_list=data['black_list'])
-    time_start = datetime.utcnow().timestamp()
-    logger.debug(f'{data["new_workout"]=}')
-    msg = await message.answer(
-        text=f'Если упражнение вам незнакомо или непонятно, найдите его в интернет и изучите самостоятельно.\n\n'
-             f'Теперь вам нужно выполнить 5 подходов выбранного упражнения, с указанным количеством повторений: '
-             f'\n{" ".join([str(approach[1]) + ("+" if approach[2] else "") for approach in data["new_workout"]])}\n'
-             f'Повторения делайте в среднем темпе, паузу между подходами выбирайте самостоятельно, '
-             f'руководствуясь собственными ощущениями. Обычно пауза длится от 10 секунд до 5 минут. '
-             f'Если после количества повторений стоит +, старайтесь сделать МАКСИМУМ повторений в этом подходе.\n'
-             f'Итак, выполните первый подход из {data["new_workout"][0][1]} повторений и нажмите кнопку "Готово". '
-             f'Если не удалось выполнить все необходимые повторения, напишите сколько удалось.',
-        reply_markup=ready)
-
-    data['delete_list'].append(msg.message_id)
-    data['delete_list'].append(message.message_id)
-    await state.update_data(time_start=time_start)
-    await state.update_data(delete_list=data['delete_list'])
-    await state.update_data(new_workout=data["new_workout"])
-    await state.update_data(done_approaches=[])
-    await state.update_data(approach=1)
-    await state.set_state(FSMTrener.workout_process)
-
-
 @router.message(F.text.lower().strip() == 'изучить подробно', StateFilter(FSMTrener.workout))
 async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase):
     data = await state.get_data()
     exercise_id = data["new_workout"][0][0]
-    exercise= db.select_rows(table='exercises', fetch='one', exercise_id=exercise_id)
+    exercise = db.select_rows(table='exercises', fetch='one', exercise_id=exercise_id)
     msg = await message.answer(
         text=f'{exercise["name"]}\n'
              f'Описание:\n'
@@ -374,46 +344,80 @@ async def start_trener(message: Message, state: FSMContext, db: SQLiteDatabase, 
     await state.update_data(delete_list=data['delete_list'])
 
 
+# @router.message(F.text.lower().strip() == 'оставить', StateFilter(FSMTrener.workout))
+# @router.message(F.text.isdigit(), StateFilter(FSMTrener.workout))
+# async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase):
+#     data = await state.get_data()
+#     exercise_id = data["new_workout"][0][0]
+# data['delete_list'].pop() if data['delete_list'] else ''
+# time_start = datetime.utcnow().timestamp()
+# msg = await message.answer(
+#     text=f'Выполните подход {1} из {data["new_workout"][0][1]}'
+#          f'{"+" if data["new_workout"][0][2] else ""} повторений '
+#          f'и нажмите кнопку "Готово". Если вы сделали другое количество, напишите сколько.', reply_markup=ready)
+# data['delete_list'].append(msg.message_id)
+# data['delete_list'].append(message.message_id)
+# await state.update_data(time_start=time_start)
+# await state.update_data(delete_list=data['delete_list'])
+# await state.update_data(new_workout=data["new_workout"])
+# await state.update_data(done_approaches=[])
+# await state.update_data(approach=1)
+# await state.set_state(FSMTrener.workout_process)
+
+
+@router.message(F.text.lower().strip() == 'оставить', StateFilter(FSMTrener.workout))
 @router.message(F.text, StateFilter(FSMTrener.workout_process))
 async def workout_process(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot):
-    logger.debug('enter_workout_process')
     data = await state.get_data()
-    logger.debug(f'before save {data["new_workout"]=}')
-    data = await save_approach(data, db, message)
-    logger.debug(f'after save {data["new_workout"]=}')
-    await state.update_data(workout_number=data["workout_number"])
-    await state.update_data(done_approaches=data['done_approaches'])
-    await state.update_data(new_workout=data["new_workout"])
-    approach = len(data['done_approaches'])
-    data['delete_list'].append(message.message_id)
-    data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
-    if approach == 1:
-        msg_timer = await message.answer_animation(
+    if 'done_approaches' not in data:
+        data['done_approaches'] = []
+    if 'approach' not in data:
+        data['approach'] = 0
+        approach = 0
+    else:
+        approach = data['approach']
+    if approach == 0:
+        time_start = datetime.utcnow().timestamp()
+        await state.update_data(time_start=time_start)
+        await state.update_data(approach=1)
+        await state.set_state(FSMTrener.workout_process)
+        msg = await message.answer(
+            text=f'Выполните повторов: {data["new_workout"][0][1]}'
+                 f'{"+" if data["new_workout"][0][2] else ""}. '
+                 f'Нажмите "Готово" или напишите сколько сделали:', reply_markup=ready)
+        data['delete_list'].pop() if data['delete_list'] else ''
+        data['delete_list'].append(msg.message_id)
+    else:
+        data = await save_approach(data, db, message)
+        await state.update_data(approach=len(data['done_approaches']))
+        await state.update_data(workout_number=data["workout_number"])
+        await state.update_data(done_approaches=data['done_approaches'])
+        await state.update_data(new_workout=data["new_workout"])
+        await state.update_data(approach=approach + 1)
+        msg = await message.answer_animation(
             animation=db.select_rows(table='multimedia', fetch='one', name='timer')['file_id'],
             caption='Отдыхайте от 10 секунд до 5 минут...',
             reply_markup=ReplyKeyboardRemove())
-        await state.update_data(msg_timer=msg_timer.message_id)
-    await asyncio.sleep(2)
-    msg = await message.answer(
-        text=f'Выполните подход {approach + 1} из {data["new_workout"][0][1]}'
-             f'{"+" if data["new_workout"][0][2] else ""} повторений '
-             f'и нажмите кнопку "Готово". Если вы сделали другое количество, напишите сколько.', reply_markup=ready)
-    data['delete_list'].append(msg.message_id)
-    logger.debug(f'{approach=}')
-    if approach == 4:
-        data['delete_list'].append(data['msg_timer'])
-    # data = await run_timer(data, db, message, bot)
-    await state.update_data(delete_list=data['delete_list'])
-    await state.update_data(approach=approach + 1)
-    if approach == 4:
-        await state.set_state(FSMTrener.workout_done)
-        logger.debug(f'workout_done_set')
-    else:
+        data['delete_list'].append(msg.message_id)
         await state.set_state(FSMTrener.workout_process)
+        await asyncio.sleep(3)
+        data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
+        msg = await message.answer(
+            text=f'Сделано: {[app[1] for app in data["done_approaches"]]} Выполните повторов: {data["new_workout"][0][1]}'
+                 f'{"+" if data["new_workout"][0][2] else ""}. '
+                 f'Нажмите "Готово" или напишите сколько сделали:', reply_markup=ready)
+        data['delete_list'].append(msg.message_id)
+        if len(data['new_workout']) == 1:
+            logger.debug(f'workout_process exit {data["new_workout"]=}')
+            await state.set_state(FSMTrener.workout_done)
+    data['delete_list'].append(message.message_id)
+    await state.update_data(delete_list=data['delete_list'])
+    logger.debug(f'workout_process exit {data["delete_list"]=}')
 
 
 @router.message(F.text, StateFilter(FSMTrener.workout_done))
 async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot):
+    logger.debug(f'start workout_done')
     data = await state.get_data()
     data['delete_list'].append(message.message_id)
     data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
