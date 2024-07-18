@@ -12,6 +12,12 @@ ready = ReplyKeyboardMarkup(
     ], one_time_keyboard=True, resize_keyboard=True
 )
 
+ready_end = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text='Готово'), KeyboardButton(text='Закончить тренировку')]
+    ], one_time_keyboard=True, resize_keyboard=True
+)
+
 ready_in = InlineKeyboardMarkup(
     inline_keyboard=[
         [InlineKeyboardButton(
@@ -82,9 +88,9 @@ muscle_groups = ReplyKeyboardMarkup(
 nokeyboard = ReplyKeyboardRemove()
 
 choose_exercise = ReplyKeyboardMarkup(
-    keyboard=[[KeyboardButton(text="Заменить"), KeyboardButton(text="Оставить")],
+    keyboard=[[KeyboardButton(text="Оставить"), KeyboardButton(text="Изучить"), KeyboardButton(text="Заменить")],
               [KeyboardButton(text="Выбрать из списка")],
-              [KeyboardButton(text="Изучить подробно")]],
+              [KeyboardButton(text="Закончить тренировку")]],
     one_time_keyboard=True, resize_keyboard=True)
 '''
 # ------- Создаем клавиатуру через ReplyKeyboardBuilder -------
