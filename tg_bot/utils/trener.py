@@ -145,12 +145,14 @@ async def award_user(user_id, db: SQLiteDatabase):
 
 
 async def run_timer(data, db: SQLiteDatabase, message):
-    users_exercises = db.select_rows(table='users_exercises', fetch='one', type=8, list=1)
+    users_exercises = db.select_rows(table='exercises_users', fetch='one', user_id=message.from_user.id, type=8, list=1)
+    logger.debug(f'{users_exercises=}')
     if users_exercises:
         animation = db.select_rows(table='exercises', fetch='one', exercise_id=users_exercises['exercise_id'])['file_id']
     else:
         animation = db.select_filtered_sorted_rows(table='exercises', sql2=' ORDER BY exercise_id ASC',
                                                    fetch='one', type=8)['file_id']
+    logger.debug(f'{animation=}')
     msg = await message.answer_animation(
         animation=animation,
         caption='Отдыхайте от 10 секунд до 5 минут...',
@@ -245,6 +247,12 @@ async def count_exercises_levels(db: SQLiteDatabase):
     :param message:
     :return:
     """
+    exercises_users = db.select_table('exercises_users')
+    for exercise_user in exercises_users:
+        exercise = db.select_rows(table='exercises', fetch='one', exercise_id=exercise_user['exercise_id'])
+        db.update_cells(table='exercises_users', cells={'type': exercise['type']},
+                        user_id=exercise_user['user_id'], exercise_id=exercise_user['exercise_id'])
+
     approaches = db.select_table(table='approaches')
     logger.debug(f'enter count_exercises_levels')
     # собираем словарь из таблицы подходов, ключ - кортеж (exercise_id, user_id)
@@ -277,7 +285,8 @@ async def count_exercises_levels(db: SQLiteDatabase):
                                'legs': exercise['legs'] * exercises_users[ind]['level'],
                                'chest': exercise['chest'] * exercises_users[ind]['level'],
                                'abs': exercise['abs'] * exercises_users[ind]['level'],
-                               'back': exercise['back'] * exercises_users[ind]['level']},
+                               'back': exercise['back'] * exercises_users[ind]['level'],
+                               'type': exercise['type']},
                         user_id=ind[1], exercise_id=ind[0])
     # собираем словарь упражнений, ключ - exercise_id
     # значение - список [сумма сложностей по всем пользователям, количество пользователей]
