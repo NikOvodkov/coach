@@ -100,7 +100,7 @@ async def main():
         # db.update_cells(table='exercises', cells={'type': 2}, exercise_id=7)
         # db.update_cells(table='exercises', cells={'type': 2}, exercise_id=9)
         # db.update_cells(table='exercises', cells={'type': 2}, exercise_id=26)
-        db.add_type_exercises_users()
+        # db.add_type_exercises_users()
 
     except Exception as e:
         logger.exception(e)

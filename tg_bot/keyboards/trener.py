@@ -18,6 +18,12 @@ ready_end = ReplyKeyboardMarkup(
     ], one_time_keyboard=True, resize_keyboard=True
 )
 
+ready_change = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text='Готово'), KeyboardButton(text='Заменить')]
+    ], one_time_keyboard=True, resize_keyboard=True
+)
+
 ready_in = InlineKeyboardMarkup(
     inline_keyboard=[
         [InlineKeyboardButton(

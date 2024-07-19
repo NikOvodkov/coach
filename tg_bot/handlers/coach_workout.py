@@ -16,11 +16,9 @@ from tg_bot.utils.trener import fill_exercises_users, generate_full_workout, sho
 router = Router()
 
 
-# @router.message(F.text.lower().strip() == 'да', StateFilter(FSMTrener.workout_end))
 @router.message(F.text.lower().strip() == 'заменить', StateFilter(FSMTrener.workout))
 @router.message(F.text.isdigit(), StateFilter(FSMTrener.workout))
 @router.message(F.text, StateFilter(FSMTrener.show_exercises))
-# @router.message(F.text.lower().strip() == 'выбрать автоматически', StateFilter(FSMTrener.workout))
 async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot):
     """
     Перед началом тренировки, нужно проверить и заполнить при необходимости таблицу exercises_users
@@ -197,12 +195,12 @@ async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase, 
     data['delete_list'].append(message.message_id)
     data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
     logger.debug(f'before last save_approaches')
-    data = await save_approach(data, db, message)
-    logger.debug(f'after last save_approaches')
-    await state.update_data(workout_number=data["workout_number"])
-    await state.update_data(done_approaches=data['done_approaches'])
-    await state.update_data(new_workout=data["new_workout"])
-    logger.debug(f'before workout saved {data["done_approaches"]=}')
+    cur_state = await state.get_state()
+    if cur_state != FSMTrener.workout:
+        data = await save_approach(data, db, message)
+        await state.update_data(workout_number=data["workout_number"])
+        await state.update_data(done_approaches=data['done_approaches'])
+        await state.update_data(new_workout=data["new_workout"])
     await message.answer(text=f"Тренировка сохранена: "
                               f"{', '.join(list(map(lambda app: f'№{str(app[0])}-{str(app[1])}', data['done_approaches'])))}\n"
                               f"Рекомендованный перерыв между тренировками одного упражнения - от 2 до 7 дней. "

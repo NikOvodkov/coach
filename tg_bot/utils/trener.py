@@ -10,7 +10,7 @@ from aiogram.types import ReplyKeyboardRemove
 
 from logging_settings import logger
 from tg_bot.database.sqlite import SQLiteDatabase
-from tg_bot.keyboards.trener import ready, ready_end
+from tg_bot.keyboards.trener import ready, ready_end, ready_change
 from tg_bot.services.ufuncs import clear_delete_list
 
 
@@ -144,6 +144,21 @@ async def award_user(user_id, db: SQLiteDatabase):
     return {'work': max_work, 'reps': max_reps}
 
 
+async def run_warmup(data, db: SQLiteDatabase, message):
+    users_exercises = db.select_rows(table='exercises_users', fetch='one', user_id=message.from_user.id, type=5, list=1)
+    if users_exercises:
+        video = db.select_rows(table='exercises', fetch='one', exercise_id=users_exercises['exercise_id'])['file_id']
+    else:
+        video = db.select_filtered_sorted_rows(table='exercises', sql2=' ORDER BY exercise_id ASC',
+                                               fetch='one', type=5)['file_id']
+    msg = await message.answer_video(
+        video=video,
+        caption='Выполните разминку...',
+        reply_markup=ready)
+    data['delete_list'].append(msg.message_id)
+    return data
+
+
 async def run_timer(data, db: SQLiteDatabase, message):
     users_exercises = db.select_rows(table='exercises_users', fetch='one', user_id=message.from_user.id, type=8, list=1)
     logger.debug(f'{users_exercises=}')
@@ -158,7 +173,7 @@ async def run_timer(data, db: SQLiteDatabase, message):
         caption='Отдыхайте от 10 секунд до 5 минут...',
         reply_markup=ReplyKeyboardRemove())
     data['delete_list'].append(msg.message_id)
-    await asyncio.sleep(3)
+    await asyncio.sleep(5)
     return data
 
 
@@ -458,6 +473,8 @@ async def get_workout_dic(voc, muscle: str = None, old_ex: int = None):
                 voc2[v] = voc[v]
             elif voc[v]['muscles'][muscle]['load'] >= 0.2:
                 voc[v]['master_level'] = voc[v]['muscles'][muscle]['level']
+                if voc[v]['master_level'] is None:
+                    voc[v]['master_level'] = 0
                 voc2[v] = voc[v]
     else:
         voc2 = voc

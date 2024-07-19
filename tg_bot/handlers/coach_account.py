@@ -23,11 +23,11 @@ async def start_trener(message: Message, state: FSMContext, db: SQLiteDatabase, 
     await asyncio.sleep(1)
     exercises_table = db.select_table('exercises')
     if exercises_table:
-        captions = []
-        captions_timer = []
-        captions_warmup = []
-        captions_cooldown = []
-        captions_workout = []
+        captions = ['----------УПРАЖНЕНИЯ-----']
+        captions_timer = ['----------ТАЙМЕРЫ-----']
+        captions_warmup = ['----------РАЗМИНКИ-----']
+        captions_cooldown = ['----------ЗАМИНКИ-----']
+        captions_workout = ['----------ТРЕНИРОВКИ-----']
         for exercise in exercises_table:
             exercise_list = db.select_rows(table='exercises_users', fetch='one',
                                            exercise_id=exercise['exercise_id'], user_id=message.from_user.id)
@@ -58,6 +58,17 @@ async def start_trener(message: Message, state: FSMContext, db: SQLiteDatabase, 
                 else:
                     captions_timer.append('  ' + str(exercise['exercise_id']).rjust(3, '⠀') + ' ' + exercise['name'])
             logger.debug(f'after timer list {captions_timer=}')
+            # формируем список разминок
+            if exercise_type in [5]:
+                if exercise_list:
+                    if exercise_list['list'] == 1:
+                        captions_warmup.append(('✅' + str(exercise['exercise_id'])).rjust(3, '⠀') + ' ' + exercise['name'])
+                    elif exercise_list['list'] == 0:
+                        captions_warmup.append(('  ' + str(exercise['exercise_id'])).rjust(3, '⠀') + ' ' + exercise['name'])
+                    else:
+                        captions_warmup.append('  ' + str(exercise['exercise_id']).rjust(3, '⠀') + ' ' + exercise['name'])
+                else:
+                    captions_warmup.append('  ' + str(exercise['exercise_id']).rjust(3, '⠀') + ' ' + exercise['name'])
         # i = 1
         # msg_ = {1: ''}
         # statistics = captions + captions_timer
@@ -71,7 +82,8 @@ async def start_trener(message: Message, state: FSMContext, db: SQLiteDatabase, 
         #     msg_[i] += statistics[workout] + '\n'
         # msg = await message.answer(text=msg_[i], reply_markup=ReplyKeyboardRemove())
         # data['delete_list'].append(msg.message_id)
-        msg = await message.answer(text='\n'.join(captions+captions_timer), reply_markup=ReplyKeyboardRemove())
+        msg = await message.answer(text='\n'.join(captions+captions_timer+captions_warmup),
+                                   reply_markup=ReplyKeyboardRemove())
         await state.set_state(FSMTrener.workout)
     else:
         msg = await message.answer(text='Сбой базы данных. Попробуйте еще раз или обратитесь к администратору',
@@ -159,8 +171,8 @@ async def add_white_list(message: Message, state: FSMContext, db: SQLiteDatabase
     exercise_id = int(message.text.strip()[2:])
     exercises_users = db.select_rows(table='exercises', fetch='one', exercise_id=exercise_id, user_id=message.from_user.id)
     if exercises_users:
-        if exercises_users['type'] in [8]:
-            msg = await message.answer(text='Таймер нельзя заблокировать!',
+        if exercises_users['type'] in [5, 6, 8]:
+            msg = await message.answer(text='Таймер, разминку и заминку нельзя заблокировать!',
                                        reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Вернуться')]],
                                                                         one_time_keyboard=True, resize_keyboard=True))
         else:
@@ -169,6 +181,7 @@ async def add_white_list(message: Message, state: FSMContext, db: SQLiteDatabase
             msg = await message.answer(text='Данные сохранены, материал не будет предлагаться.',
                                        reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Обновить список')]],
                                                                         one_time_keyboard=True, resize_keyboard=True))
+        data['delete_list'].append(msg.message_id)
     # else:
     #     if exercises_users['type'] in [8]:
     #         db.add_exercise_user(user_id=message.from_user.id, exercise_id=exercise_id, list_=None)
@@ -179,5 +192,5 @@ async def add_white_list(message: Message, state: FSMContext, db: SQLiteDatabase
     #         msg = await message.answer(text='Данные сохранены, материал не будет предлагаться.',
     #                                    reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Обновить список')]],
     #                                                                     one_time_keyboard=True, resize_keyboard=True))
-    data['delete_list'].append(msg.message_id)
+    # data['delete_list'].append(msg.message_id)
     await state.update_data(delete_list=data['delete_list'])
