@@ -14,7 +14,7 @@ ready = ReplyKeyboardMarkup(
 
 ready_end = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text='Готово'), KeyboardButton(text='Закончить тренировку')]
+        [KeyboardButton(text='Продолжить'), KeyboardButton(text='Закончить тренировку')]
     ], one_time_keyboard=True, resize_keyboard=True
 )
 

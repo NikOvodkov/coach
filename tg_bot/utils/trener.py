@@ -75,12 +75,12 @@ async def show_approach(data, message, db, keyboard, bot: Bot):
             text=f'Сделано: {", ".join([str(app[0]) + "-" + str(app[1]) for app in data["done_approaches"]])} '
                  f'Выполните повторов: {data["new_workout"][0][1]}'
                  f'{"+" if data["new_workout"][0][2] else ""}. '
-                 f'Нажмите "Готово" или напишите сколько сделали:', reply_markup=ready_end)
+                 f'Нажмите "Продолжить" или напишите сколько сделали:', reply_markup=ready_end)
     else:
         msg = await message.answer(
             text=f'Выполните повторов: {data["new_workout"][0][1]}'
                  f'{"+" if data["new_workout"][0][2] else ""}. '
-                 f'Нажмите "Готово" или напишите сколько сделали:', reply_markup=ready_end)
+                 f'Нажмите "Продолжить" или напишите сколько сделали:', reply_markup=ready_end)
     return msg
 
 
@@ -157,7 +157,7 @@ async def run_timer(data, db: SQLiteDatabase, message, bot):
     await asyncio.sleep(2)
     msg = await message.answer(
         text=f'Выполните подход {data["approach"] + 1} из {data["new_workout"][data["approach"]][1]} повторений '
-             f'и нажмите кнопку "Готово". Если вы сделали другое количество, напишите сколько.', reply_markup=ready_end)
+             f'и нажмите кнопку "Продолжить". Если вы сделали другое количество, напишите сколько.', reply_markup=ready_end)
     data['delete_list'].append(msg.message_id)
     return data
 

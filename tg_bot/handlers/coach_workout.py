@@ -79,11 +79,13 @@ async def workout_process_1(message: Message, state: FSMContext, db: SQLiteDatab
     msg = await message.answer(
         text=f'Выполните повторов: {data["new_workout"][0][1]}'
              f'{"+" if data["new_workout"][0][2] else ""}. '
-             f'Нажмите "Готово" или напишите сколько сделали:', reply_markup=ready_end)
+             f'Нажмите "Продолжить" или напишите сколько сделали:', reply_markup=ready_end)
     data['delete_list'].append(msg.message_id)
     await state.update_data(delete_list=data['delete_list'])
 
 
+@router.message(F.text.isdigit(), StateFilter(FSMTrener.workout_process))
+@router.message(F.text.lower().strip() == 'продолжить', StateFilter(FSMTrener.workout_process))
 @router.message(F.text.lower().strip() == 'готово', StateFilter(FSMTrener.workout_process))
 async def workout_process_2(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot):
     data = await state.get_data()
@@ -118,7 +120,7 @@ async def workout_process_2(message: Message, state: FSMContext, db: SQLiteDatab
         text=f'Сделано: {", ".join([str(app[0]) + "-" + str(app[1]) for app in data["done_approaches"]])} '
              f'Выполните повторов: {data["new_workout"][0][1]}'
              f'{"+" if data["new_workout"][0][2] else ""}. '
-             f'Нажмите "Готово" или напишите сколько сделали:', reply_markup=ready_end)
+             f'Нажмите "Продолжить" или напишите сколько сделали:', reply_markup=ready_end)
 
     data['delete_list'].append(msg.message_id)
 
@@ -135,6 +137,8 @@ async def workout_process_2(message: Message, state: FSMContext, db: SQLiteDatab
     logger.debug(f'workout_process exit {data["delete_list"]=}')
 
 
+@router.message(F.text.isdigit(), StateFilter(FSMTrener.show_exercises_new))
+@router.message(F.text.lower().strip() == 'продолжить', StateFilter(FSMTrener.show_exercises_new))
 @router.message(F.text.lower().strip() == 'готово', StateFilter(FSMTrener.show_exercises_new))
 async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot):
     """
