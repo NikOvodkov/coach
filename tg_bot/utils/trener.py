@@ -103,7 +103,7 @@ async def award_user(user_id, db: SQLiteDatabase):
     logger.debug(f'enter_award_user')
     today = datetime.today().isoformat()[:10]
     today_approaches = db.select_filtered_sorted_rows(table='approaches',
-                                                      sql2=f' AND date>{today}',
+                                                      sql2=f' AND date>"{today}"',
                                                       fetch='all', user_id=user_id)
     exercises = {}
     max_reps = {}
@@ -116,7 +116,7 @@ async def award_user(user_id, db: SQLiteDatabase):
     for exercise_id in exercises:
         # максимальный повтор упражнения во всех воркаутах, кроме последнего
         max_approach = db.select_filtered_sorted_rows(table='approaches',
-                                                      sql2=f' AND date<{today} ORDER BY dynamic DESC',
+                                                      sql2=f' AND date<"{today}" ORDER BY dynamic DESC',
                                                       fetch='one', user_id=user_id,
                                                       exercise_id=exercise_id)
         if not max_approach:
@@ -144,21 +144,19 @@ async def award_user(user_id, db: SQLiteDatabase):
     return {'work': max_work, 'reps': max_reps}
 
 
-async def run_timer(data, db: SQLiteDatabase, message, bot):
-    data['delete_list'].append(message.message_id)
-    for message_id in data['delete_list']:
-        await bot.delete_message(chat_id=message.from_user.id, message_id=message_id)
-    data['delete_list'] = []
+async def run_timer(data, db: SQLiteDatabase, message):
+    users_exercises = db.select_rows(table='users_exercises', fetch='one', type=8, list=1)
+    if users_exercises:
+        animation = db.select_rows(table='exercises', fetch='one', exercise_id=users_exercises['exercise_id'])['file_id']
+    else:
+        animation = db.select_filtered_sorted_rows(table='exercises', sql2=' ORDER BY exercise_id ASC',
+                                                   fetch='one', type=8)['file_id']
     msg = await message.answer_animation(
-        animation=db.select_rows(table='multimedia', fetch='one', name='timer')['file_id'],
+        animation=animation,
         caption='Отдыхайте от 10 секунд до 5 минут...',
         reply_markup=ReplyKeyboardRemove())
     data['delete_list'].append(msg.message_id)
-    await asyncio.sleep(2)
-    msg = await message.answer(
-        text=f'Выполните подход {data["approach"] + 1} из {data["new_workout"][data["approach"]][1]} повторений '
-             f'и нажмите кнопку "Продолжить". Если вы сделали другое количество, напишите сколько.', reply_markup=ready_end)
-    data['delete_list'].append(msg.message_id)
+    await asyncio.sleep(3)
     return data
 
 
@@ -217,7 +215,7 @@ async def fill_exercises_users(user_id: int, db: SQLiteDatabase):
         exercise_user = db.select_rows(table='exercises_users', fetch='one',
                                        user_id=user_id, exercise_id=exercise['exercise_id'])
         if not exercise_user:
-            db.add_exercise_user(user_id=user_id, exercise_id=exercise['exercise_id'])
+            db.add_exercise_user(user_id=user_id, exercise_id=exercise['exercise_id'], type_=exercise['type'])
     return
 
 

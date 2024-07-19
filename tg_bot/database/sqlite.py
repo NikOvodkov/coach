@@ -192,6 +192,8 @@ class SQLiteDatabase:
         CREATE TABLE IF NOT EXISTS exercises_users (
                 user_id INTEGER REFERENCES users (user_id),  /* id пользователя */
                 exercise_id INTEGER REFERENCES exercises (exercise_id), /* id упражнения */
+                type INTEGER, /*1-динамика непарная/2-динамика парная/3-статика непарная/4-статика парная
+                              /5-разминка/6-заминка/7-тренировка/8-таймер*/
                 list INTEGER DEFAULT NULL,  /* белый=1/черный=0 */
                 weighting INTEGER DEFAULT 0,  /* текущее утяжеление в упражнении */
                 arms REAL,  /* нагрузка на руки в упражнении с текущим утяжелением*/
@@ -203,11 +205,11 @@ class SQLiteDatabase:
         '''
         self.execute(sql, commit=True)
 
-    def add_exercise_user(self, user_id: int, exercise_id: int, list_: int = None, weighting: int = 0, arms: float = None,
-                          legs: float = None, chest: float = None, abs_: float = None, back: float = None):
-        sql = ('INSERT INTO exercises_users (user_id, exercise_id, list, weighting, arms, legs, chest, abs, back) '
-               'VALUES(?,?,?,?,?,?,?,?,?)')
-        parameters = (user_id, exercise_id, list_, weighting, arms, legs, chest, abs_, back)
+    def add_exercise_user(self, user_id: int, exercise_id: int, type_: int = None, list_: int = None, weighting: int = 0,
+                          arms: float = None, legs: float = None, chest: float = None, abs_: float = None, back: float = None):
+        sql = ('INSERT INTO exercises_users (user_id, exercise_id, type, list, weighting, arms, legs, chest, abs, back) '
+               'VALUES(?,?,?,?,?,?,?,?,?,?)')
+        parameters = (user_id, exercise_id, type_, list_, weighting, arms, legs, chest, abs_, back)
         self.execute(sql, parameters=parameters, commit=True)
 
     def create_table_muscles(self):
@@ -636,6 +638,12 @@ class SQLiteDatabase:
         sql = '''
         ALTER TABLE users ADD endurance REAL;
         '''
+        self.execute(sql, commit=True, script=True)
+
+    def add_type_exercises_users(self):
+        sql = '''
+           ALTER TABLE exercises_users ADD type INTEGER;
+           '''
         self.execute(sql, commit=True, script=True)
 
     def regenerate_approaches(self):

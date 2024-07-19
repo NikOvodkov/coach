@@ -11,7 +11,7 @@ from tg_bot.database.sqlite import SQLiteDatabase
 from tg_bot.keyboards.trener import choose_exercise, ready_end
 from tg_bot.services.ufuncs import clear_delete_list
 from tg_bot.states.trener import FSMTrener
-from tg_bot.utils.trener import fill_exercises_users, generate_full_workout, show_exercise, show_approach, save_approach, award_user
+from tg_bot.utils.trener import fill_exercises_users, generate_full_workout, show_exercise, show_approach, save_approach, award_user, run_timer
 
 router = Router()
 
@@ -103,12 +103,13 @@ async def workout_process_2(message: Message, state: FSMContext, db: SQLiteDatab
              f'Отдыхайте, затем выполните повторов: {data["new_workout"][0][1]}'
              f'{"+" if data["new_workout"][0][2] else ""}. ', reply_markup=ReplyKeyboardRemove())
     data['delete_list'].append(msg.message_id)
-    msg = await message.answer_animation(
-        animation=db.select_rows(table='multimedia', fetch='one', name='timer')['file_id'],
-        caption='Отдыхайте от 10 секунд до 5 минут...',
-        reply_markup=ReplyKeyboardRemove())
-    data['delete_list'].append(msg.message_id)
-    await asyncio.sleep(3)
+    data = await run_timer(data, db, message)
+    # msg = await message.answer_animation(
+    #     animation=db.select_rows(table='multimedia', fetch='one', name='timer')['file_id'],
+    #     caption='Отдыхайте от 10 секунд до 5 минут...',
+    #     reply_markup=ReplyKeyboardRemove())
+    # data['delete_list'].append(msg.message_id)
+    # await asyncio.sleep(3)
 
     # data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
     await state.set_state(FSMTrener.workout_process)
@@ -164,12 +165,13 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase,
         text=f'Сделано: {", ".join([str(app[0]) + "-" + str(app[1]) for app in data["done_approaches"]])} '
              , reply_markup=ReplyKeyboardRemove())
     # data['delete_list'].append(msg.message_id)
-    msg = await message.answer_animation(
-        animation=db.select_rows(table='multimedia', fetch='one', name='timer')['file_id'],
-        caption='Отдыхайте от 10 секунд до 5 минут...',
-        reply_markup=ReplyKeyboardRemove())
-    data['delete_list'].append(msg.message_id)
-    await asyncio.sleep(3)
+    data = await run_timer(data, db, message)
+    # msg = await message.answer_animation(
+    #     animation=db.select_rows(table='multimedia', fetch='one', name='timer')['file_id'],
+    #     caption='Отдыхайте от 10 секунд до 5 минут...',
+    #     reply_markup=ReplyKeyboardRemove())
+    # data['delete_list'].append(msg.message_id)
+    # await asyncio.sleep(3)
 
     data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
     # msg = await message.answer(
@@ -233,7 +235,6 @@ async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase, 
     msg = await message.answer(text='До новых встреч!', reply_markup=ReplyKeyboardRemove())
     logger.debug(f'after do novyh vstrech')
     data['delete_list'].append(msg.message_id)
-    data['delete_list'].append(message.message_id)
     await asyncio.sleep(10)
     data['delete_list'] = await clear_delete_list(data['delete_list'], bot=bot, user_id=message.from_user.id)
     logger.debug(f'after deleting list')
