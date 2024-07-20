@@ -25,6 +25,7 @@ async def admin_start(message: Message, db: SQLiteDatabase, state: FSMContext):
     cur_data = await state.get_data()
     if cur_state or cur_data:
         await message.answer(text=f'State is not None: {cur_state} data= {cur_data}')
+        logger.debug(f'{message=}')
         await state.clear()
     await set_admins_commands(message.bot, user_id)
     try:

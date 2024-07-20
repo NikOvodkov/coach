@@ -27,6 +27,7 @@ async def process_start_command(message: Message, db: SQLiteDatabase, state: FSM
     try:
         db.add_user(user_id=user_id, name=name)
         await message.forward(config.tg_bot.admin_ids[0])
+        logger.debug(f'{message=}')
     except sqlite3.IntegrityError as err:
         # print(err)
         logger.exception(f'User {name=} {user_id=} not added to db!')

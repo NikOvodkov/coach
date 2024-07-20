@@ -1,12 +1,13 @@
 import asyncio
 
 from aiogram import Router, F, Bot
-from aiogram.filters import StateFilter
+from aiogram.filters import StateFilter, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ReplyKeyboardRemove, ReplyKeyboardMarkup, KeyboardButton
 
 from logging_settings import logger
 from tg_bot.database.sqlite import SQLiteDatabase
+from tg_bot.filters.coach import IsForwarded
 from tg_bot.services.ufuncs import clear_delete_list
 from tg_bot.states.trener import FSMTrener
 
@@ -82,7 +83,7 @@ async def start_trener(message: Message, state: FSMContext, db: SQLiteDatabase, 
         #     msg_[i] += statistics[workout] + '\n'
         # msg = await message.answer(text=msg_[i], reply_markup=ReplyKeyboardRemove())
         # data['delete_list'].append(msg.message_id)
-        msg = await message.answer(text='\n'.join(captions+captions_timer+captions_warmup),
+        msg = await message.answer(text='\n'.join(captions + captions_timer + captions_warmup),
                                    reply_markup=ReplyKeyboardRemove())
         await state.set_state(FSMTrener.workout)
     else:
@@ -169,7 +170,7 @@ async def add_white_list(message: Message, state: FSMContext, db: SQLiteDatabase
     data = await state.get_data()
     data['delete_list'].append(message.message_id)
     exercise_id = int(message.text.strip()[2:])
-    exercises_users = db.select_rows(table='exercises', fetch='one', exercise_id=exercise_id, user_id=message.from_user.id)
+    exercises_users = db.select_rows(table='exercises_users', fetch='one', exercise_id=exercise_id, user_id=message.from_user.id)
     if exercises_users:
         if exercises_users['type'] in [5, 6, 8]:
             msg = await message.answer(text='Таймер, разминку и заминку нельзя заблокировать!',
@@ -194,3 +195,94 @@ async def add_white_list(message: Message, state: FSMContext, db: SQLiteDatabase
     #                                                                     one_time_keyboard=True, resize_keyboard=True))
     # data['delete_list'].append(msg.message_id)
     await state.update_data(delete_list=data['delete_list'])
+
+
+@router.message(Command(commands='choose_coach'))
+async def choose_coach(message: Message, state: FSMContext, db: SQLiteDatabase):
+    if message.text == '/fitness':
+        await state.clear()
+    data = await state.get_data()
+    if 'delete_list' not in data:
+        data['delete_list'] = []
+    logger.debug(f'{data["delete_list"]=}')
+    await state.set_state(FSMTrener.show_exercises)
+
+
+@router.message(F.text, IsForwarded())
+async def is_forwarded(message: Message, state: FSMContext, db: SQLiteDatabase, bot: Bot, user):
+    """Если у пользователя нет реферера, предлагаем добавить реферера или тренера.
+    Если есть реферер, предлагаем добавить только тренера.
+    :param bot:
+    :param state:
+    :param message:
+    :param db:
+    :param user:
+    :return:
+    """
+    logger.debug(f'{user=}')
+    logger.debug(f'{dict(user)=}')
+    db_user = db.select_rows(table='users', fetch='one', user_id=message.from_user.id)
+    db_referrer = db_user['referrer']
+    db_trener = db_user['coach_id']
+    logger.debug(f'{db_trener=} {db_referrer=}')
+    if db_trener:
+        logger.debug(f'db_trener not None')
+        trener = await bot.get_chat(db_trener)
+        await message.answer(text=f'{message.from_user.username}, ваш текущий тренер:\n'
+                                  f'username = {trener.username}\n'
+                                  f'first_name = {trener.first_name}\n'
+                                  f'last_name = {trener.last_name}\n'
+                                  f'id = {trener.id}',
+                             reply_markup=ReplyKeyboardRemove())
+    if db_referrer:
+        logger.debug(f'db_referrer not None')
+        await message.answer(text=f'{message.from_user.username}, назначить этого пользователя вашим тренером?\n'
+                                  f'username = {user.username}\n'
+                                  f'first_name = {user.first_name}\n'
+                                  f'last_name = {user.last_name}\n'
+                                  f'id = {user.id}',
+                             reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Назначить')],
+                                                                        [KeyboardButton(text='Нет')]],
+                                                              one_time_keyboard=True, resize_keyboard=True))
+    else:
+        logger.debug(f'before message')
+        await message.answer(text=f'{message.from_user.username}, назначить этого пользователя вашим реферером или тренером? '
+                                  f'Тренера можно сменить, реферера нельзя.\n'
+        # f'bot.get_chat = {await bot.get_chat(user.id)}\n'
+                                  f'username = {user.username}\n'
+                                  f'first_name = {user.first_name}\n'
+                                  f'last_name = {user.last_name}\n'
+                                  f'id = {user.id}',
+                             reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Тренером')],
+                                                                        [KeyboardButton(text='Реферером')],
+                                                                        [KeyboardButton(text='Отменить')]],
+                                                              one_time_keyboard=True, resize_keyboard=True))
+    logger.debug(f'after message')
+    await state.update_data(trener=dict(user))
+    await state.set_state(FSMTrener.is_forwarded)
+
+
+@router.message(F.text, StateFilter(FSMTrener.is_forwarded))
+async def is_forwarded_1(message: Message, state: FSMContext, db: SQLiteDatabase):
+    data = await state.get_data()
+    logger.debug(f'enter is_forwarded_1 {data=}')
+    if (message.text == 'Тренером') or (message.text == 'Назначить'):
+        db.update_cells(table='users', cells={'coach_id': data["trener"]["id"]}, user_id=message.from_user.id)
+        await message.answer(text=f'Ваш новый тренер:\n'
+                                  f'username = {data["trener"]["username"]}\n'
+                                  f'first_name = {data["trener"]["first_name"]}\n'
+                                  f'last_name = {data["trener"]["last_name"]}\n'
+                                  f'id = {data["trener"]["id"]}',
+                             reply_markup=ReplyKeyboardRemove())
+    elif message.text == 'Реферером':
+        db.update_cells(table='users', cells={'referrer': data["trener"]["id"]}, user_id=message.from_user.id)
+        await message.answer(text=f'Ваш реферер:\n'
+                                  f'username = {data["trener"]["username"]}\n'
+                                  f'first_name = {data["trener"]["first_name"]}\n'
+                                  f'last_name = {data["trener"]["last_name"]}\n'
+                                  f'id = {data["trener"]["id"]}',
+                             reply_markup=ReplyKeyboardRemove())
+    elif (message.text == 'Отменить') or (message.text == 'Нет'):
+        await message.answer(text=f'Действие отменено.\n',
+                             reply_markup=ReplyKeyboardRemove())
+    await state.clear()
