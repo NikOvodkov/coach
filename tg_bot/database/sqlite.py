@@ -93,17 +93,18 @@ class SQLiteDatabase:
         '''
         self.execute(sql, commit=True, script=True)
 
-    def add_user(self, user_id: int, name: str, email: str = None, status: int = 1,
-                 latitude: float = None, longitude: float = None, time_zone: int = None,
-                 birth_date: str = None, life_date: str = None, life_calendar_sub: str = None,
-                 trener_sub: str = None, weight: int = None, arms_level: float = None, legs_level: float = None,
-                 chest_level: float = None, abs_level: float = None, back_level: float = None, endurance: float = None):
-        sql = ('INSERT OR IGNORE INTO users(user_id, name, email, status, latitude, longitude, time_zone, '
-               'birth_date, life_date, life_calendar_sub, trener_sub, weight,'
+    def add_user(self, user_id: int, referrer: int = None, coach_id: int = None, name: str = None, email: str = None,
+                 status: int = 1, latitude: float = None, longitude: float = None, time_zone: int = None,
+                 birth_date: str = None, life_date: str = None, life_calendar_sub: str = None, coach_sub: str = None,
+                 weight: int = None, height: int = None, sex: str = None,
+                 arms_level: float = None, legs_level: float = None, chest_level: float = None,
+                 abs_level: float = None, back_level: float = None, endurance: float = None):
+        sql = ('INSERT OR IGNORE INTO users(user_id, referrer, coach_id, name, email, status, latitude, longitude, time_zone, '
+               'birth_date, life_date, life_calendar_sub, coach_sub, weight, height, sex,'
                'arms_level, legs_level, chest_level, abs_level, back_level, endurance) '
-               'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-        parameters = (user_id, name, email, status, latitude, longitude, time_zone,
-                      birth_date, life_date, life_calendar_sub, trener_sub, weight,
+               'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        parameters = (user_id, referrer, coach_id, name, email, status, latitude, longitude, time_zone,
+                      birth_date, life_date, life_calendar_sub, coach_sub, weight, height, sex,
                       arms_level, legs_level, chest_level, abs_level, back_level, endurance)
         self.execute(sql, parameters=parameters, commit=True)
 

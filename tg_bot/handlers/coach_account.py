@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 
 from aiogram import Router, F, Bot
 from aiogram.filters import StateFilter, Command
@@ -12,6 +13,36 @@ from tg_bot.services.ufuncs import clear_delete_list
 from tg_bot.states.trener import FSMTrener
 
 router = Router()
+
+
+@router.message(Command(commands='statistics'))
+async def show_statistics(message: Message, state: FSMContext, db: SQLiteDatabase):
+    workouts = db.select_rows(table='approaches', fetch='all', user_id=message.from_user.id)
+    logger.debug(f'{workouts=}')
+    msg = ''
+    statistics = {}
+    for workout in workouts:
+        if workout['workout_id'] in statistics:
+            statistics[workout['workout_id']] += ' #' + str(workout['exercise_id']) + '-' + str(workout['dynamic'])
+        else:
+            if workout['date']:
+                logger.debug(f'{workout["date"]=}')
+                date = datetime.fromisoformat(workout['date']).strftime('%d.%m')
+            else:
+                date = ''
+            statistics[workout['workout_id']] = (date + ' #' + str(workout['exercise_id'])
+                                                 + '-' + str(workout['dynamic']))
+    logger.debug(f'{statistics=}')
+    i = 1
+    msg = {1: ''}
+    for workout in statistics:
+        if len(msg[i]) > 4000:
+            await message.answer(text=msg[i])
+            i += 1
+            msg[i] = ''
+        msg[i] += statistics[workout] + '\n'
+    await message.answer(text=msg[i], reply_markup=ReplyKeyboardRemove())
+    await state.clear()
 
 
 @router.message(F.text.lower().strip() == 'вернуться', StateFilter(FSMTrener.workout))

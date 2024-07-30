@@ -17,30 +17,30 @@ router = Router()
 router.message.filter(IsAdmin(load_config('.env').tg_bot.admin_ids))
 
 
-@router.message(Command('start'))
-async def admin_start(message: Message, db: SQLiteDatabase, state: FSMContext):
-    name = message.from_user.full_name
-    user_id = message.from_user.id
-    cur_state = await state.get_state()
-    cur_data = await state.get_data()
-    if cur_state or cur_data:
-        await message.answer(text=f'State is not None: {cur_state} data= {cur_data}')
-        logger.debug(f'{message=}')
-        await state.clear()
-    await set_admins_commands(message.bot, user_id)
-    try:
-        db.add_user(user_id=user_id, name=name)
-    except sqlite3.IntegrityError as err:
-        # print(err)
-        logger.exception(f'User {name=} {user_id=} not added to db!')
-    finally:
-        count_users = db.count_rows('users')[0]
-        await message.answer(
-            '\n'.join([
-                f'Привет, админ {message.from_user.full_name}!',
-                f'Ты был занесён в базу',
-                f'В базе <b>{count_users}</b> пользователей'
-            ]), reply_markup=keyboard)
+# @router.message(Command('start'))
+# async def admin_start(message: Message, db: SQLiteDatabase, state: FSMContext):
+#     name = message.from_user.full_name
+#     user_id = message.from_user.id
+#     cur_state = await state.get_state()
+#     cur_data = await state.get_data()
+#     if cur_state or cur_data:
+#         await message.answer(text=f'State is not None: {cur_state} data= {cur_data}')
+#         logger.debug(f'{message=}')
+#         await state.clear()
+#     await set_admins_commands(message.bot, user_id)
+#     try:
+#         db.add_user(user_id=user_id, name=name)
+#     except sqlite3.IntegrityError as err:
+#         # print(err)
+#         logger.exception(f'User {name=} {user_id=} not added to db!')
+#     finally:
+#         count_users = db.count_rows('users')[0]
+#         await message.answer(
+#             '\n'.join([
+#                 f'Привет, админ {message.from_user.full_name}!',
+#                 f'Ты был занесён в базу',
+#                 f'В базе <b>{count_users}</b> пользователей'
+#             ]), reply_markup=keyboard)
 
 
 # Этот хэндлер будет срабатывать на апдейт типа CallbackQuery

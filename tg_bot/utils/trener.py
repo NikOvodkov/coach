@@ -20,37 +20,57 @@ class Approach(NamedTuple):
     max: bool = None
 
 
-def generate_short_split(old_max: int = 1, exercise_id: int = 4):
-    return [[exercise_id, max(1, math.floor(old_max / 2)), False],
-            [exercise_id, old_max, True],
-            [exercise_id, round(old_max * 0.8), True]]
+def generate_triple(old_max: int = 1, old_sum: int = 3, exercise_id: int = 4):  # 2 4 3
+    one = max(1, round(old_max / 2))   # 2 2
+    two = old_max                      # 4 5
+    three = old_sum - two - one + 1    # 4 5
+    while (three > two - 1) or ( one > round(two * 0.6)):
+        if three > two - 1:                #
+            three -= 1                     # 4 3
+            one += 1                       # 2 3
+            if one > round(two * 0.6):     #
+                one -= 1                   # 3 2
+                two += 1                   # 4 5
+    if three >= two:
+        logger.warning(f'3>2 {exercise_id=}')
+    return [[exercise_id, one, False],
+            [exercise_id, two, True],
+            [exercise_id, three, True]]
 
 
-# Генерирует новый сплит из 3 подходов, даже если старого не было или в нём было другое число подходов
-def generate_new_split_new(old_split: list = None, exercise_id: int = 4) -> list:
-    if old_split:
-        exercise_id = old_split[0][0]
-        set_old = list(map(lambda x: x[1], old_split))
-        for i in range(3 - len(set_old)):
-            set_old.append(0)
+async def generate_short_split(db, user_id, exercise_id):
+    # создаём список с последним воркаутом, находим в нём максимум и общую сумму повторений
+    # на основе этих данных строим трипл
+    logger.debug(f'enter generate_short_split')
+    last_approach = db.select_filtered_sorted_rows(table='approaches', fetch='one', sql2=f' ORDER BY approach_id DESC',
+                                                   user_id=user_id, exercise_id=exercise_id)
+    if last_approach:
+        workout_id = last_approach['workout_id']
+        last_approaches = db.select_filtered_sorted_rows(table='approaches', fetch='all', sql2=f' ORDER BY approach_id ASC',
+                                                         user_id=user_id, exercise_id=exercise_id, workout_id=workout_id)
+        triple_max = 0
+        triple_sum = 0
+        for approach in last_approaches:
+            triple_sum += approach['dynamic']
+            if triple_max < approach['dynamic']:
+                triple_max = approach['dynamic']
+        logger.debug(f'generate_triple {triple_max=} {triple_sum=}')
+        triple = generate_triple(old_max=triple_max, exercise_id=exercise_id, old_sum=triple_sum)
     else:
-        set_old = [1, 1, 1]
-    new_split = [[], [], []]
-    # первый подход = половине от максимума на прошлой тренировке
-    new_split[0] = [exercise_id, max(1, math.floor(max(set_old) / 2)), False]
-    # второй подход = максимуму+ на прошлой тренировке
-    new_split[1] = [exercise_id, max(set_old), True]
-    # третий подход = второй подход -20%
-    new_split[2] = [exercise_id, round(max(set_old) * 0.8), True]
-    return new_split
+        triple = generate_triple(old_max=1, exercise_id=exercise_id, old_sum=3)
+    return triple
 
 
-async def show_exercise(message, db, exercise_id, keyboard):
+async def show_exercise(message, db, exercise_id, keyboard, muscle: str = None):
     exercise = db.select_rows(table='exercises', fetch='one', exercise_id=exercise_id)
+    if muscle:
+        caption = f'{exercise["exercise_id"]}. {exercise["name"]}, проработаем {muscle}.'
+    else:
+        caption = f'{exercise["exercise_id"]}. {exercise["name"]}'
     if exercise['file_id']:
         msg = await message.answer_animation(
             animation=exercise['file_id'],
-            caption=f'{exercise["exercise_id"]}. {exercise["name"]}',
+            caption=caption,
             reply_markup=keyboard)
     else:
         msg = await message.answer(text=f'{exercise["exercise_id"]}. {exercise["name"]}', reply_markup=keyboard)
@@ -145,6 +165,7 @@ async def award_user(user_id, db: SQLiteDatabase):
 
 
 async def run_warmup(data, db: SQLiteDatabase, message):
+    logger.debug('enter run_warmup')
     users_exercises = db.select_rows(table='exercises_users', fetch='one', user_id=message.from_user.id, type=5, list=1)
     if users_exercises:
         video = db.select_rows(table='exercises', fetch='one', exercise_id=users_exercises['exercise_id'])['file_id']
@@ -155,7 +176,10 @@ async def run_warmup(data, db: SQLiteDatabase, message):
         video=video,
         caption='Выполните разминку...',
         reply_markup=ready)
-    data['delete_list'].append(msg.message_id)
+    if 'delete_list' in data:
+        data['delete_list'].append(msg.message_id)
+    else:
+        data['delete_list'] = [msg.message_id]
     return data
 
 
@@ -374,7 +398,7 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
         #  2. Суммируем относительную (работа/кг мышцы) недельную работу по каждой мышце,
         #      выясняем у какой меньше всего, будем прорабатывать её.
         cells = ['arms', 'legs', 'chest', 'abs', 'back']
-        masses = [0.21, 0.55, 0.06, 0.06, 0.12]
+        masses = [0.22, 0.51, 0.07, 0.07, 0.13]
         works = db.sum_filtered_sorted_rows(table='approaches', cells=cells, sql2=f' AND date > "{week_ago}"',
                                             tuple_=True, fetch='one', user_id=user_id)
         works = list(map(truediv, works, masses))
@@ -435,16 +459,12 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
         logger.debug(f'before sorted_workout {exercises_voc[old_ex]=}')
     sorted_workout = await get_workout_dic(exercises_voc, min_cell, old_ex)
     logger.warning(f'{sorted_workout=}')
-    #  4. Создаём тренировку с каждым из массива упражнений, для этого находим предыдущий воркаут с ним.
+    #  4. Создаём тренировку - список триплов упражнений из массива.
     wrkt = []
     for voc in sorted_workout:
-        approach = db.select_filtered_sorted_rows(table='approaches', fetch='one', sql2=f' ORDER BY dynamic DESC',
-                                                  user_id=user_id, exercise_id=sorted_workout[voc]['exercise_id'])
-        if approach:
-            wrkt += generate_short_split(old_max=approach['dynamic'], exercise_id=sorted_workout[voc]['exercise_id'])
-        else:
-            wrkt += generate_short_split(exercise_id=sorted_workout[voc]['exercise_id'])
-    return wrkt
+        wrkt_el = await generate_short_split(db=db, user_id=user_id, exercise_id=sorted_workout[voc]['exercise_id'])
+        wrkt += wrkt_el
+    return wrkt, min_cell
 
 
 async def get_workout_dic(voc, muscle: str = None, old_ex: int = None):
@@ -516,12 +536,11 @@ if __name__ == '__main__':
     #     user_split = generate_new_split(user_split)
     #     print(*user_split)
 
-    user_split = input('Input split: ')
-    print(generate_new_split_new(list(map(lambda x: [0, int(x), False], user_split.split()))))
+    # user_split = input('Input split: ')
     # while True:
     #     time.sleep(1)
     #     user_split = generate_new_split(user_split)
     #     print(user_split)
 
-    # print(generate_new_split([1,1,0,0,1]))
+    print()
     # asyncio.run(generate_new_split([1,1,0,0,1]))

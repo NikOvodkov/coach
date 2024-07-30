@@ -17,22 +17,22 @@ router = Router()
 
 
 # Этот хэндлер срабатывает на команду /start
-@router.message(CommandStart())
-async def process_start_command(message: Message, db: SQLiteDatabase, state: FSMContext, config: Config):
-
-    await state.clear()
-    await set_starting_commands(message.bot, message.from_user.id)
-    name = message.from_user.full_name
-    user_id = message.from_user.id
-    try:
-        db.add_user(user_id=user_id, name=name)
-        await message.forward(config.tg_bot.admin_ids[0])
-        logger.debug(f'{message=}')
-    except sqlite3.IntegrityError as err:
-        # print(err)
-        logger.exception(f'User {name=} {user_id=} not added to db!')
-    finally:
-        await message.answer(text=LEXICON_RU['/start'], reply_markup=ReplyKeyboardRemove())
+# @router.message(CommandStart())
+# async def process_start_command(message: Message, db: SQLiteDatabase, state: FSMContext, config: Config):
+#
+#     await state.clear()
+#     await set_starting_commands(message.bot, message.from_user.id)
+#     name = message.from_user.full_name
+#     user_id = message.from_user.id
+#     try:
+#         db.add_user(user_id=user_id, name=name)
+#         await message.forward(config.tg_bot.admin_ids[0])
+#         logger.debug(f'{message=}')
+#     except sqlite3.IntegrityError as err:
+#         # print(err)
+#         logger.exception(f'User {name=} {user_id=} not added to db!')
+#     finally:
+#         await message.answer(text=LEXICON_RU['/start'], reply_markup=ReplyKeyboardRemove())
 
 
 # Этот хэндлер срабатывает на команду /about

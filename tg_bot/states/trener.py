@@ -38,5 +38,20 @@ class FSMTrener(StatesGroup):
     is_forwarded = State()  # Состояние добавления реферера или тренера
 
 
+class FSMCoach(StatesGroup):
+    input_shw = State()  # вводим пол, рост, вес
+    input_shw_2 = State()  # подтверждаем пол, рост, вес
+    input_shw_3 = State()  # сохраняем пол, рост, вес
+    input_birth_date = State()  # вводим дату рождения
+    input_birth_date_2 = State()  # подтверждаем дату рождения
+    input_geo = State()  # получаем часовой пояс
+    input_geo_2 = State()  # подтверждаем часовой пояс
+    input_geo_3 = State()  # сохраняем часовой пояс
+    input_geo_4 = State()  # уточняем часовой пояс
+    start_workout = State()  # запускаем тренировку
+
+
+
+
 
 

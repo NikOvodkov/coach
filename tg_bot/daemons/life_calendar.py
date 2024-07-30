@@ -7,6 +7,8 @@ from datetime import datetime, timedelta, time
 from pathlib import Path
 
 from aiogram import Dispatcher, Bot
+from aiogram.filters import StateFilter
+from aiogram.fsm.state import default_state
 from aiogram.fsm.storage.base import StorageKey
 from aiogram.types import Message, ReplyKeyboardRemove, FSInputFile, ReplyKeyboardMarkup, KeyboardButton
 
@@ -27,12 +29,16 @@ def is_daytime(user):
 
 async def send_life_calendar(db: SQLiteDatabase, bot: Bot, dp: Dispatcher):
     while True:
-        logger.debug(f'enter_while_life_calendar')
+        logger.debug(f'enter_while_send_life_calendar')
         records = db.select_table('users')
         for row in records:
+            state = await dp.storage.get_state(StorageKey(bot_id=bot.id, chat_id=row['user_id'], user_id=row['user_id']))
+            logger.debug(f'run users table: {state=} {row["user_id"]=}')
             if row['coach_sub'] and is_daytime(row) and row['status'] == 1:
-                logger.debug(f'enter_sub_trener')
-                if (datetime.now() - datetime.fromisoformat(row['coach_sub'])) >= timedelta(days=7):
+                logger.debug(f'enter_sub_coach')
+                if (datetime.now() - datetime.fromisoformat(row['coach_sub'])) >= timedelta(days=7)\
+                        and state == StateFilter(default_state):
+                    logger.debug(f'need_update sub_coach')
                     db.update_cell(table='users', cell='coach_sub', cell_value=None,
                                    key='user_id', key_value=row['user_id'])
                     await bot.send_message(row['user_id'],
@@ -46,7 +52,9 @@ async def send_life_calendar(db: SQLiteDatabase, bot: Bot, dp: Dispatcher):
                     #                            state=FSMLifeCalendar.confirm_geo)
             if row['life_calendar_sub'] and is_daytime(row) and row['status'] == 1:
                 logger.debug(f'enter_sub_life_calendar')
-                if (datetime.now() - datetime.fromisoformat(row['life_calendar_sub'])) >= timedelta(days=7):
+                if (datetime.now() - datetime.fromisoformat(row['life_calendar_sub'])) >= timedelta(days=7)\
+                        and state == StateFilter(default_state):
+                    logger.debug(f'need_update sub_life_calendar')
                     path = str(Path.cwd() / Path('tg_bot', 'utils', f'{datetime.now().strftime("%Y%m%d%H%M%S%f")}.gif'))
                     lived_weeks = await generate_image_calendar(row['birth_date'], row['life_date'], 'week', path)
                     if lived_weeks % 52 == 0:

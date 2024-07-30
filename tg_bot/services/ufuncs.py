@@ -6,7 +6,10 @@ from logging_settings import logger
 async def clear_delete_list(delete_list, bot, user_id):
     logger.debug(f'{delete_list=}')
     for message_id in set(delete_list):
-        await bot.delete_message(chat_id=user_id, message_id=message_id)
+        try:
+            await bot.delete_message(chat_id=user_id, message_id=message_id)
+        except:
+            logger.warning('Messages not deleted!')
     return []
 
 

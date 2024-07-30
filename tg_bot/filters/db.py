@@ -9,14 +9,20 @@ from tg_bot.database.sqlite import SQLiteDatabase
 
 
 class MyUserDbFilter(BaseFilter):
-    def __init__(self, column: str) -> None:
-        self.column = column
+    def __init__(self, columns: list[str]) -> None:
+        self.columns = columns
 
     async def __call__(self, message: Message, db: SQLiteDatabase) -> bool | dict[str, Any]:
-        cell = db.select_rows(table='users', fetch='one', user_id=message.from_user.id)
-        logger.debug(f'filter  {cell=}')
-        if cell:
-            return {'cell': cell[self.column]}
+        table = dict(db.select_rows(table='users', fetch='one', user_id=message.from_user.id))
+        logger.debug(f'filter  {table=}')
+        cells = {}
+        if table:
+            for column in self.columns:
+                if column in table and table[column] is not None:
+                    cells[column] = table[column]
+        logger.debug(f'filter  {cells=}')
+        if len(cells) == len(self.columns):
+            return {'cells': cells}
         return False
 
 
