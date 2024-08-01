@@ -21,7 +21,7 @@ from aiogram.types import Message, ReplyKeyboardRemove, ReplyKeyboardMarkup, Key
 from logging_settings import logger
 from tg_bot.config import Config
 from tg_bot.database.sqlite import SQLiteDatabase
-from tg_bot.filters.db import MyUserDbFilter
+from tg_bot.filters.db import MyUserDbFilter, FirstDayLaunch
 from tg_bot.keyboards.trener import yesno
 from tg_bot.states.life_calendar import FSMLifeCalendar
 from tg_bot.states.trener import FSMCoach, FSMTrener
@@ -33,6 +33,7 @@ router = Router()
 @router.message(F.text.lower().strip() == 'нет', StateFilter(FSMLifeCalendar.enter_date_opt))
 @router.message(F.text.lower().strip() == 'запустить тренировку')
 @router.message(Command(commands='fitness'), MyUserDbFilter(columns=['time_zone', 'birth_date', 'weight', 'height', 'sex']))
+# @router.message(Command(commands='fitness'), MyUserDbFilter(columns=['time_zone', 'birth_date', 'weight', 'height', 'sex']), FirstDayLaunch())
 async def warmup_07new(message: Message, state: FSMContext, db: SQLiteDatabase):
     logger.debug(f'enter command fitness')
     if message.text == '/fitness':
@@ -52,8 +53,8 @@ async def warmup_07new(message: Message, state: FSMContext, db: SQLiteDatabase):
 @router.message(Command(commands='fitness'))
 @router.message(CommandStart())
 async def coach_start(message: Message, command: CommandObject, db: SQLiteDatabase, state: FSMContext, config: Config):
-    logger.debug('enter_coach_start')
     args = command.args
+    logger.warning(f'enter_coach_start {args=}')
     user_id = message.from_user.id
     name = message.from_user.full_name
     # if message.text.startswith('/start'):
@@ -61,6 +62,8 @@ async def coach_start(message: Message, command: CommandObject, db: SQLiteDataba
     try:
         user_db = db.select_rows(table='users', fetch='one', user_id=user_id)
         if user_db:
+            if args.isdigit() and user_db['referrer'] is None:
+                db.update_cells(table='users', cells={'referrer': args}, user_id=message.from_user.id)
             await state.clear()
             if message.text.startswith('/start'):
                 await message.answer(text='Приложение сброшено в исходное состояние.', reply_markup=ReplyKeyboardRemove())
@@ -72,6 +75,8 @@ async def coach_start(message: Message, command: CommandObject, db: SQLiteDataba
                 await state.set_state(FSMCoach.input_shw)
         else:
             db.add_user(user_id=user_id, name=name)
+            if args.isdigit():
+                db.update_cells(table='users', cells={'referrer': args}, user_id=message.from_user.id)
             await message.forward(config.tg_bot.admin_ids[0])
             await message.answer(text='Приветствуем вас! Для работы с приложением потребуется пройти короткую регистрацию.',
                                  reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Хорошо')]],

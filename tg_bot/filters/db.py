@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from datetime import datetime
 from typing import Any
 
 from aiogram.filters import BaseFilter
@@ -24,6 +27,19 @@ class MyUserDbFilter(BaseFilter):
         if len(cells) == len(self.columns):
             return {'cells': cells}
         return False
+
+
+class FirstDayLaunch(BaseFilter):
+    async def __call__(self, message: Message, db: SQLiteDatabase) -> bool | dict[str, Any]:
+        today = datetime.today().isoformat()
+        last_approach = db.select_filtered_sorted_rows(table='approaches', sql2=f' AND date > "{today}" ORDER BY date DESC',
+                                                             fetch='one', user_id=message.from_user.id)
+        if last_approach:
+            logger.debug("IT ISN'T 1ST LAUNCH TODAY")
+            return False
+        else:
+            logger.debug("IT'S 1ST LAUNCH TODAY")
+            return True
 
 
 class MaterialType(BaseFilter):

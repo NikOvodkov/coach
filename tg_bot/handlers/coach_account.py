@@ -15,6 +15,15 @@ from tg_bot.states.trener import FSMTrener
 router = Router()
 
 
+@router.message(Command(commands='invite_friend'))
+async def invite_friend(message: Message, state: FSMContext):
+    await message.answer(text=f'Перешлите другу следующее сообщение, или просто отправьте от себя, скопировав текст.')
+    await message.answer(text=f'Привет! Приглашаю тебя вместе делать упражнения по этой программе: '
+                              # f'https://t.me/lifestyle_coach_bot?start={message.from_user.id}')
+                              f'https://t.me/nib_test_bot?start={message.from_user.id}')
+    await state.clear()
+
+
 @router.message(Command(commands='statistics'))
 async def show_statistics(message: Message, state: FSMContext, db: SQLiteDatabase):
     workouts = db.select_rows(table='approaches', fetch='all', user_id=message.from_user.id)

@@ -10,6 +10,7 @@ async def set_default_commands(bot: Bot):
             BotCommand(command='fitness', description='Фитнес'),
             BotCommand(command='statistics', description='Статистика'),
             BotCommand(command='life_calendar', description='Календарь жизни'),
+            BotCommand(command='invite_friend', description='Пригласить друга'),
             BotCommand(command='about', description='О боте'),
             BotCommand(command='help', description='Помощь')
         ],
@@ -32,6 +33,7 @@ async def set_admins_commands(bot: Bot, chat_id: int):
             BotCommand(command='start', description='Рестарт бота'),
             BotCommand(command='email', description='Сменить почту'),
             BotCommand(command='get_commands', description='Получить список команд'),
+            BotCommand(command='invite_friend', description='Пригласить друга'),
             BotCommand(command='help', description='Помощь')
         ],
         scope=BotCommandScopeChat(chat_id=chat_id),
@@ -47,6 +49,7 @@ async def set_starting_commands(bot: Bot, chat_id: int):
             BotCommand(command='fitness', description='Фитнес'),
             BotCommand(command='statistics', description='Статистика'),
             BotCommand(command='life_calendar', description='Календарь жизни'),
+            BotCommand(command='invite_friend', description='Пригласить друга'),
             BotCommand(command='about', description='О боте'),
             BotCommand(command='help', description='Помощь')
         ],
@@ -56,6 +59,7 @@ async def set_starting_commands(bot: Bot, chat_id: int):
             BotCommand(command='fitness', description='Get workout'),
             BotCommand(command='statistics', description='Statistics'),
             BotCommand(command='life_calendar', description='Get life calendar'),
+            BotCommand(command='invite_friend', description='Invite friend'),
             BotCommand(command='about', description='Get information'),
             BotCommand(command='help', description='Get help')
         ]
@@ -132,6 +136,7 @@ async def set_all_private_commands(bot: Bot):
             BotCommand(command='fitness', description='Фитнес'),
             BotCommand(command='statistics', description='Статистика'),
             BotCommand(command='life_calendar', description='Календарь жизни'),
+            BotCommand(command='invite_friend', description='Пригласить друга'),
             BotCommand(command='about', description='О боте'),
             BotCommand(command='help', description='Помощь')
         ], scope=BotCommandScopeAllPrivateChats())

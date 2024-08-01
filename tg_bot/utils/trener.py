@@ -398,7 +398,7 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
         #  2. Суммируем относительную (работа/кг мышцы) недельную работу по каждой мышце,
         #      выясняем у какой меньше всего, будем прорабатывать её.
         cells = ['arms', 'legs', 'chest', 'abs', 'back']
-        masses = [0.22, 0.51, 0.07, 0.07, 0.13]
+        masses = [0.23, 0.47, 0.08, 0.08, 0.14]
         works = db.sum_filtered_sorted_rows(table='approaches', cells=cells, sql2=f' AND date > "{week_ago}"',
                                             tuple_=True, fetch='one', user_id=user_id)
         works = list(map(truediv, works, masses))
@@ -481,10 +481,10 @@ async def get_workout_dic(voc, muscle: str = None, old_ex: int = None):
 
     :param old_ex:
     :param muscle:
-    :param voc: словарь всех допущенных до тренировки упражнений
+    :param voc: словарь всех допущенных до тренировки упражнений (кроме заблокированных)
     :return:
     """
-    logger.debug(f'get_workout_dic {muscle=} {voc=}')
+    logger.debug(f'формируем программу воркаута на день: {muscle=} {voc=}')
     if muscle:
         # выбираем упражнения с muscle_load>=0.2
         voc2 = {}
@@ -496,11 +496,13 @@ async def get_workout_dic(voc, muscle: str = None, old_ex: int = None):
                 if voc[v]['master_level'] is None:
                     voc[v]['master_level'] = 0
                 voc2[v] = voc[v]
+        logger.debug(f'оставляем упражнения только на нужную группу мышц: {muscle=} {voc2=}')
     else:
         voc2 = voc
+        logger.debug(f'группа мышц не выбрана, оставляем все упражнения: {muscle=} {voc2=}')
     voc3 = [[voc2[d]['frequency'], voc2[d]['master_level'], voc2[d]['muscles'], d] for d in voc2]
     voc3 = sorted(voc3, key=lambda a: a[0], reverse=True)
-    logger.debug(f'SEREDINA get_workout_dic {voc3=}')
+    logger.debug(f'сортируем выбранные упражнения по убыванию частоты: {muscle=} {voc3=}')
     # выбираем не менее 5 упражнений с максимальным frequency
     voc2 = []
     for v in voc3:
@@ -508,9 +510,10 @@ async def get_workout_dic(voc, muscle: str = None, old_ex: int = None):
             voc2.append(v)
         elif voc2[-1][0] == v[0]:
             voc2.append(v)
-        logger.debug(f'{voc2=}')
+    logger.debug(f'выбираем не менее 5 упражнений с максимальной частотой: {muscle=} {voc2=}')
     # сортируем выбранные упражнения по убыванию сложности
     voc3 = sorted(voc2, key=lambda a: a[1], reverse=True)
+    logger.debug(f'сортируем эти упражнения по убыванию сложности: {muscle=} {voc3=}')
     # теперь нужно добавить остальные упражнения из базы в порядке убывания frequency
     # для этого создаём список всех упражнений
     voc4 = [[voc[d]['frequency'], voc[d]['master_level'], voc[d]['muscles'], d] for d in voc]
@@ -519,13 +522,40 @@ async def get_workout_dic(voc, muscle: str = None, old_ex: int = None):
         if v in voc3:
             logger.debug(f'remove from voc: {v=}')
             voc4.remove(v)
+    logger.debug(f'создаём список без этих 5 упражнений: {muscle=} {voc4=}')
     # сортируем по убыванию frequency
     voc4 = sorted(voc4, key=lambda a: a[0], reverse=True)
+    logger.debug(f'сортируем новый список по убыванию частоты: {muscle=} {voc4=}')
     # объединяем списки
     voc3 = voc3 + voc4
+    logger.debug(f'объединяем оба списка в один: {muscle=} {voc3=}')
     voc3 = {i: {'exercise_id': v[3], 'frequency': v[0], 'muscles': v[2], 'master_level': v[1]} for i, v in enumerate(voc3)}
-    logger.debug(f'get_workout_dic end {voc3=}')
+    logger.debug(f'создаём из объединённого списка словарь: {muscle=} {voc3=}')
     return voc3
+
+
+async def form_statistics(db, user_id):
+    """ Статистика должна показывать прогресс юзера, чтобы поддерживать интерес к дальнейшим тренировкам.
+    Мы можем замерить работу за неделю и показывать график зависимости работы от номера недели, на котором видно рост.
+    Но нам бы ещё замерить интегральный рост по упражнениям. Для этого создаём массив недель и для каждой недели замеряем максимум по всем
+    упражениям. Потом для каждой недели усредняем по упражнениям изменение максимумов и выдаём 1 оценку недели (+0,3 или -0,1).
+
+    Статистика должна показывать, чем этот юзер положительно выделяется перед другими пользователями.
+    Если юзер выполняет какое-то упражнение лучше некоторого объема пользователей (например 50%),
+    это нужно указывать при его поздравлении с новым максимумом.
+
+    Статистика должна показывать, чем этот юзер отрицательно выделяется перед другими пользователями, чтобы он понимал над чем работать.
+    Если юзер выполняет какое-то упражнение хуже некоторого объема пользователей (например 50%),
+    это нужно указывать при его поздравлении с новым максимумом.
+
+    Раз в неделю желательно выкладывать в канал пост о количестве пользователей и их прогрессе.
+    Можно поздравлять лидеров и подбадривать аутсайдеров
+
+    :param db:
+    :param user_id:
+    :return:
+    """
+    return
 
 
 if __name__ == '__main__':
