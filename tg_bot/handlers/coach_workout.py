@@ -183,7 +183,7 @@ async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase, 
         await state.update_data(new_workout=data["new_workout"])
     await message.answer(text=f"Тренировка сохранена: "
                               f"{', '.join(list(map(lambda app: f'№{str(app[0])}-{str(app[1])}', data['done_approaches'])))}\n"
-                              f"Рекомендованный перерыв между тренировками одного упражнения - от 2 до 7 дней. "
+                              f"Рекомендованный перерыв между тренировками одного упражнения - от 1 до 3 дней. "
                               f"Если перерыв будет более 7 дней, прогресс может отсутствовать.")
     awards = await award_user(message.from_user.id, db)
     logger.debug(f'{awards=}')
@@ -217,7 +217,7 @@ async def workout_done(message: Message, state: FSMContext, db: SQLiteDatabase, 
     await state.clear()
 
 
-@router.message(F.text.lower().strip() == 'изучить подробно', StateFilter(FSMTrener.workout))
+@router.message(F.text.lower().strip().startswith('изучить'), StateFilter(FSMTrener.workout))
 async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase):
     data = await state.get_data()
     exercise_id = data["new_workout"][0][0]
