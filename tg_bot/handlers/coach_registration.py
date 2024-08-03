@@ -61,11 +61,14 @@ async def coach_start(message: Message, command: CommandObject, db: SQLiteDataba
     #     await message.answer(text=f'Ваши аргументы: {args=}', reply_markup=ReplyKeyboardRemove())
     try:
         user_db = db.select_rows(table='users', fetch='one', user_id=user_id)
+        logger.warning(f'enter_coach_start {message.text=}')
         if user_db:
-            if args.isdigit() and user_db['referrer'] is None:
+            if args and args.isdigit() and user_db['referrer'] is None:
                 db.update_cells(table='users', cells={'referrer': args}, user_id=message.from_user.id)
+            logger.warning(f'before message sbros {state=}')
             await state.clear()
             if message.text.startswith('/start'):
+                logger.warning(f'before message sbros {state=}')
                 await message.answer(text='Приложение сброшено в исходное состояние.', reply_markup=ReplyKeyboardRemove())
             if not (user_db['weight'] and user_db['height'] and user_db['sex']
                     and user_db['time_zone'] and user_db['birth_date']):
