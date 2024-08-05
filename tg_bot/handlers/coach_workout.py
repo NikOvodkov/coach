@@ -62,6 +62,7 @@ async def start_workout(message: Message, state: FSMContext, db: SQLiteDatabase,
     await state.update_data(new_workout=data["new_workout"])
     await state.update_data(delete_list=data['delete_list'])
     await state.update_data(black_list=data['black_list'])
+    await state.update_data(muscle=muscle)
     await state.update_data(change_exercise=True)
     await state.set_state(FSMTrener.workout)
 
@@ -77,7 +78,7 @@ async def workout_process_1(message: Message, state: FSMContext, db: SQLiteDatab
     data['delete_list'].append(message.message_id)
     data['delete_list'] = await clear_delete_list(data['delete_list'], bot, message.from_user.id)
     msg = await message.answer(
-        text=f'Выполните повторов: {data["new_workout"][0][1]}'
+        text=f'Прорабатываем {data["muscle"] if "muscle" in data else "all"}. Выполните повторов: {data["new_workout"][0][1]}'
              f'{"+" if data["new_workout"][0][2] else ""}. '
              f'Нажмите "Продолжить" или напишите сколько сделали:', reply_markup=ready_end)
     data['delete_list'].append(msg.message_id)

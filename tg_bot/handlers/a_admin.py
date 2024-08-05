@@ -2,7 +2,7 @@ import sqlite3
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, BotCommandScopeChat, CallbackQuery
+from aiogram.types import Message, BotCommandScopeChat, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
 from logging_settings import logger
 from tg_bot.database.sqlite import SQLiteDatabase
@@ -52,7 +52,7 @@ async def process_button_1_press(callback: CallbackQuery):
             text='Была нажата БОЛЬШАЯ КНОПКА 1',
             reply_markup=callback.message.reply_markup
         )
-    await callback.answer()
+    await callback.answer(text='Ура! Нажата кнопка 2')
 
 
 # Этот хэндлер будет срабатывать на апдейт типа CallbackQuery
@@ -64,7 +64,7 @@ async def process_button_2_press(callback: CallbackQuery):
             text='Была нажата БОЛЬШАЯ КНОПКА 2',
             reply_markup=callback.message.reply_markup
         )
-    await callback.answer()
+    await callback.answer(text='Ура! Нажата кнопка 2')
 
 def quote_html(arg):
     pass
@@ -91,3 +91,31 @@ async def message_reset_commands(message: Message):
 async def change_admin_commands(message: Message):
     await set_chat_admins_commands(message.bot, message.chat.id)
     await message.answer('Команды администраторов для этого чата были изменены.')
+
+
+# Создаем объекты инлайн-кнопок
+big_button_1 = InlineKeyboardButton(
+    text='БОЛЬШАЯ КНОПКА 1',
+    callback_data='big_button_1_pressed'
+)
+
+big_button_2 = InlineKeyboardButton(
+    text='БОЛЬШАЯ КНОПКА 2',
+    callback_data='big_button_2_pressed'
+)
+
+# Создаем объект инлайн-клавиатуры
+keyboard = InlineKeyboardMarkup(
+    inline_keyboard=[[big_button_1],
+                     [big_button_2]]
+)
+
+
+# Этот хэндлер будет срабатывать на команду "/start"
+# и отправлять в чат клавиатуру с инлайн-кнопками
+@router.message(Command('inline'))
+async def process_start_command(message: Message):
+    await message.answer(
+        text='Это инлайн-кнопки. Нажми на любую!',
+        reply_markup=keyboard
+)

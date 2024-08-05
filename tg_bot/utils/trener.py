@@ -21,16 +21,16 @@ class Approach(NamedTuple):
 
 
 def generate_triple(old_max: int = 1, old_sum: int = 3, exercise_id: int = 4):  # 2 4 3
-    one = max(1, round(old_max / 2))   # 2 2
-    two = old_max                      # 4 5
-    three = old_sum - two - one + 1    # 4 5
-    while (three > two - 1) or ( one > round(two * 0.6)):
-        if three > two - 1:                #
-            three -= 1                     # 4 3
-            one += 1                       # 2 3
-            if one > round(two * 0.6):     #
-                one -= 1                   # 3 2
-                two += 1                   # 4 5
+    one = max(1, round(old_max / 2))  # 2 2
+    two = old_max  # 4 5
+    three = old_sum - two - one + 1  # 4 5
+    while (three > two - 1) or (one > round(two * 0.6)):
+        if three > two - 1:  #
+            three -= 1  # 4 3
+            one += 1  # 2 3
+            if one > round(two * 0.6):  #
+                one -= 1  # 3 2
+                two += 1  # 4 5
     if three >= two:
         logger.warning(f'3>2 {exercise_id=}')
     return [[exercise_id, one, False],
@@ -64,7 +64,8 @@ async def generate_short_split(db, user_id, exercise_id):
 async def show_exercise(message, db, exercise_id, keyboard, muscle: str = None):
     exercise = db.select_rows(table='exercises', fetch='one', exercise_id=exercise_id)
     if muscle:
-        caption = f'{exercise["exercise_id"]}. {exercise["name"]}, проработаем {muscle}.'
+        # caption = f'{exercise["exercise_id"]}. {exercise["name"]}, проработаем {muscle}.'
+        caption = f'{exercise["exercise_id"]}. {exercise["name"]}'
     else:
         caption = f'{exercise["exercise_id"]}. {exercise["name"]}'
     if exercise['file_id']:
@@ -377,6 +378,7 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
                                                    user_id=user_id)
     month_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
     week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
+    today = datetime.today().isoformat()
     if last_approach:
         break_time = datetime.utcnow() - datetime.fromisoformat(last_approach['date'])
     else:
@@ -444,8 +446,14 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
         else:
             exercises_voc[exercise['exercise_id']]['frequency'] -= 2
     logger.warning(f'last months exercises {exercises_voc=}')
+    #  исключим сегодняшние упражнения, если уже что-то делали
+    today_exercises = db.select_filtered_sorted_rows(table='approaches', sql2=f' AND date > "{today}"',
+                                                     tuple_=True, fetch='all', user_id=user_id, number=1)
+
+    today_exercises = [today_exercise[3] for today_exercise in today_exercises] if today_exercises else []
     if not black_list:
         black_list = []
+    black_list += today_exercises
     for exercise in blocked_exercises:
         if exercise['exercise_id'] not in black_list and exercise['exercise_id'] != old_ex:
             black_list.append(exercise['exercise_id'])
