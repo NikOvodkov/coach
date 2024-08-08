@@ -378,7 +378,7 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
                                                    user_id=user_id)
     month_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
     week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
-    today = datetime.today().isoformat()
+    today = datetime.today().isoformat()[:10]
     if last_approach:
         break_time = datetime.utcnow() - datetime.fromisoformat(last_approach['date'])
     else:
@@ -449,7 +449,7 @@ async def generate_full_workout(db: SQLiteDatabase, user_id: int, black_list: li
     #  исключим сегодняшние упражнения, если уже что-то делали
     today_exercises = db.select_filtered_sorted_rows(table='approaches', sql2=f' AND date > "{today}"',
                                                      tuple_=True, fetch='all', user_id=user_id, number=1)
-
+    logger.debug(f'TODAY EXERCISES: {today_exercises=}')
     today_exercises = [today_exercise[3] for today_exercise in today_exercises] if today_exercises else []
     if not black_list:
         black_list = []
@@ -563,6 +563,27 @@ async def form_statistics(db, user_id):
     :param user_id:
     :return:
     """
+    return
+
+
+def get_names_from_content(message: str, badnames=[]):
+    splited = message.split()
+    words = {}
+    for word in splited:
+        if word.endswith(':'):
+            word = word[:-1]
+            if word in words:
+                words[word] += 1
+            else:
+                words[word] = 1
+    words = dict(sorted(words.items(), key=lambda item: item[1], reverse=True))
+    name1 = words.keys()[0]
+    name2 = words.keys()[1]
+    return name1, name2
+
+def get_user_content(text):
+    """ Находим первое слово, заканчивающееся двоеточием. Затем находим следующее, но другое. Вероятно, что эти слова имена.
+    Пробуем разобрать текст на реплики"""
     return
 
 

@@ -5,6 +5,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import ReplyKeyboardRemove
+from openai import OpenAI
 from pyrogram import Client
 
 from autorun import return_bot_status, print_telegram
@@ -86,6 +87,7 @@ async def main():
         default=DefaultBotProperties(parse_mode=ParseMode.HTML)
     )
     dp = Dispatcher(storage=storage)
+    ai = OpenAI(api_key=config.ai.token, base_url="https://api.proxyapi.ru/openai/v1")
     # Инициализируем другие объекты (пул соединений с БД, кеш и т.п.)
     db = SQLiteDatabase()
     try:
@@ -114,6 +116,7 @@ async def main():
     dp['config'] = config
     dp['db'] = db
     dp['bot'] = aiobot
+    dp['ai'] = ai
     if return_bot_status('autorun.txt', 300):
         logger.info('Nib: autorun rabotaet')
         await print_telegram('Nib: autorun rabotaet')

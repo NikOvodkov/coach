@@ -1,15 +1,17 @@
 import sqlite3
 from aiogram import Router, F
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, BotCommandScopeChat, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import Message, BotCommandScopeChat, ReplyKeyboardRemove
+from openai import OpenAI
 
-from logging_settings import logger
-from tg_bot.database.sqlite import SQLiteDatabase
 from tg_bot.filters.admin import IsAdmin
-from tg_bot.keyboards.inline import keyboard
+from tg_bot.keyboards.trener import ready, yesno
+from tg_bot.lexicon.ai import AI
 from tg_bot.services.setting_commands import set_admins_commands, set_chat_admins_commands
-from tg_bot.config import load_config
+from tg_bot.config import load_config, Config
+from tg_bot.states.trener import FSMCoach, FSMAi
+from tg_bot.utils.trener import get_names_from_content
 
 router = Router()
 
@@ -43,31 +45,57 @@ router.message.filter(IsAdmin(load_config('.env').tg_bot.admin_ids))
 #             ]), reply_markup=keyboard)
 
 
-# Этот хэндлер будет срабатывать на апдейт типа CallbackQuery
-# с data 'big_button_1_pressed'
-@router.callback_query(F.data == 'big_button_1_pressed')
-async def process_button_1_press(callback: CallbackQuery):
-    if callback.message.text != 'Была нажата БОЛЬШАЯ КНОПКА 1':
-        await callback.message.edit_text(
-            text='Была нажата БОЛЬШАЯ КНОПКА 1',
-            reply_markup=callback.message.reply_markup
-        )
-    await callback.answer(text='Ура! Нажата кнопка 2')
-
-
-# Этот хэндлер будет срабатывать на апдейт типа CallbackQuery
-# с data 'big_button_2_pressed'
-@router.callback_query(F.data == 'big_button_2_pressed')
-async def process_button_2_press(callback: CallbackQuery):
-    if callback.message.text != 'Была нажата БОЛЬШАЯ КНОПКА 2':
-        await callback.message.edit_text(
-            text='Была нажата БОЛЬШАЯ КНОПКА 2',
-            reply_markup=callback.message.reply_markup
-        )
-    await callback.answer(text='Ура! Нажата кнопка 2')
-
 def quote_html(arg):
     pass
+
+
+@router.message(Command('ai'))
+async def start_ai(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer(text='Введите задачу для ИИ (system content):', reply_markup=ready)
+    await state.set_state(FSMAi.get_task)
+
+
+@router.message(F.text, StateFilter(FSMAi.get_task))
+async def get_task(message: Message, state: FSMContext):
+    if message.text.lower().strip() == 'готово':
+        await state.update_data(system_content=AI['system_content'])
+    else:
+        await state.update_data(system_content=message.text)
+    await message.answer(text='Введите предысторию разговора (не более 4000 символов):', reply_markup=ready)
+    await state.set_state(FSMAi.get_context)
+
+
+@router.message(F.text.lower().strip() == 'готово', StateFilter(FSMAi.get_context))
+@router.message(F.text.lower().strip() == 'да', StateFilter(FSMAi.run))
+async def run_ai(message: Message, state: FSMContext, ai: OpenAI):
+    data = await state.get_data()
+    # if data['system_content']
+    if message.text.lower().strip() == 'готово' and state == FSMAi.get_context:
+        user_content = []
+    else:
+        user_content = get_user_content(message.text)
+        await state.update_data(system_content=message.text)
+    completion = ai.chat.completions.create(
+        model="gpt-3.5-turbo",  # max_tokens=100000,
+        messages=[
+            {"role": "system", "content": },
+            {"role": "user", "content": "Прочитайте предыдущую переписку с женщиной и продолжайте её таким образом, чтобы женщине очень захотелось "
+                                        "с вами встретиться. "}
+        ]
+    )
+    await message.answer(text=completion.choices[0].message.content)
+
+
+@router.message(F.text.lower().strip() == 'нет', StateFilter(FSMAi.run))
+@router.message(F.text, StateFilter(FSMAi.get_context))
+async def get_task(message: Message, state: FSMContext):
+    if message.text.lower().strip() != 'нет':
+        await state.update_data(user_content=message.text)
+    data = await state.get_data()
+    names = get_names_from_content(data['user_content'])
+    await message.answer(text=f'Имена собеседников: {names}?', reply_markup=yesno)
+    await state.set_state(FSMAi.run)
 
 
 @router.message(Command('get_commands'))
@@ -91,31 +119,3 @@ async def message_reset_commands(message: Message):
 async def change_admin_commands(message: Message):
     await set_chat_admins_commands(message.bot, message.chat.id)
     await message.answer('Команды администраторов для этого чата были изменены.')
-
-
-# Создаем объекты инлайн-кнопок
-big_button_1 = InlineKeyboardButton(
-    text='БОЛЬШАЯ КНОПКА 1',
-    callback_data='big_button_1_pressed'
-)
-
-big_button_2 = InlineKeyboardButton(
-    text='БОЛЬШАЯ КНОПКА 2',
-    callback_data='big_button_2_pressed'
-)
-
-# Создаем объект инлайн-клавиатуры
-keyboard = InlineKeyboardMarkup(
-    inline_keyboard=[[big_button_1],
-                     [big_button_2]]
-)
-
-
-# Этот хэндлер будет срабатывать на команду "/start"
-# и отправлять в чат клавиатуру с инлайн-кнопками
-@router.message(Command('inline'))
-async def process_start_command(message: Message):
-    await message.answer(
-        text='Это инлайн-кнопки. Нажми на любую!',
-        reply_markup=keyboard
-)

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from environs import Env
 
@@ -23,6 +25,11 @@ class DbConfig:
 
 
 @dataclass
+class AiConfig:
+    token: str
+
+
+@dataclass
 class Miscellaneous:
     other_params: str = None
 
@@ -31,6 +38,7 @@ class Miscellaneous:
 class Config:
     tg_bot: TgBot
     db: DbConfig
+    ai: AiConfig
     misc: Miscellaneous
 
 
@@ -56,11 +64,14 @@ def load_config(path: str | None = None) -> Config:
             user=env.str("DB_USER"),
             database=env.str("DB_NAME"),
             postgres_uri=f'postgresql://{env.str("DB_USER")}:{env.str("DB_PASS")}@{env.str("DB_HOST")}/postgres'),
+        ai=AiConfig(
+            token=env.str("AI_TOKEN")),
         misc=Miscellaneous())
-
 
     # Выводим значения полей экземпляра класса Config на печать,
     # чтобы убедиться, что все данные, получаемые из переменных окружения, доступны
+
+
 if __name__ == '__main__':
     config = load_config()
     print('BOT_TOKEN:', config.tg_bot.token)

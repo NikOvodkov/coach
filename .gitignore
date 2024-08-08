@@ -104,6 +104,8 @@ celerybeat.pid
 # Environments
 .env.dist
 .env
+ai.env
+tg_bot/lexicon/ai.py
 .venv
 env/
 venv/

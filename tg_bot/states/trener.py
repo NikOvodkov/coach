@@ -51,6 +51,12 @@ class FSMCoach(StatesGroup):
     start_workout = State()  # запускаем тренировку
 
 
+class FSMAi(StatesGroup):
+    get_task = State()  # общаемся с ии
+    get_context = State()  # общаемся с ии
+    run = State()  # общаемся с ии
+
+
 
 
 
