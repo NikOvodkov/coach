@@ -88,6 +88,7 @@ async def main():
     )
     dp = Dispatcher(storage=storage)
     ai = OpenAI(api_key=config.ai.token, base_url="https://api.proxyapi.ru/openai/v1")
+
     # Инициализируем другие объекты (пул соединений с БД, кеш и т.п.)
     db = SQLiteDatabase()
     try:

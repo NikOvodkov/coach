@@ -1,10 +1,11 @@
 import asyncio
 from dataclasses import dataclass
-
+from pyrogram import Client
 import aiohttp
 import requests
 
 from logging_settings import logger
+from tg_bot.config import load_config
 
 
 @dataclass
@@ -22,10 +23,19 @@ class Buyer(object):
     Email: str = ''
     Country: str = ''
 
+from tg_bot.config import load_config
+
+config = load_config('.env')
+
+
+# client = Client(name='me_client', api_id=config.tg_bot.api_id, api_hash=config.tg_bot.api_hash)
+# создаем клиент телеграм
+app = Client("me_client", api_id=config.tg_bot.api_id, api_hash=config.tg_bot.api_hash)
+
 
 async def check_user(payload):
     # session = requests.session()
-
+    config = load_config('.env')
     async with aiohttp.ClientSession() as session:
         query = {
             "auth": ('12345678', '123456')

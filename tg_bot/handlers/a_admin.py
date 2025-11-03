@@ -79,7 +79,7 @@ async def run_ai(message: Message, state: FSMContext, ai: OpenAI):
     completion = ai.chat.completions.create(
         model="gpt-3.5-turbo",  # max_tokens=100000,
         messages=[
-            {"role": "system", "content": },
+            {"role": "system", "content": "Вы — помощник администратора..."},
             {"role": "user", "content": "Прочитайте предыдущую переписку с женщиной и продолжайте её таким образом, чтобы женщине очень захотелось "
                                         "с вами встретиться. "}
         ]

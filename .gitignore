@@ -108,6 +108,7 @@ ai.env
 tg_bot/lexicon/ai.py
 .venv
 env/
+coach_env/
 venv/
 ENV/
 env.bak/
